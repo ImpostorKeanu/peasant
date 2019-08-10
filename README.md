@@ -1,5 +1,7 @@
 # Peasant: Extract Profile Information from an Authenticated LinkedIn Session
 
+...gets first and last name, organization, location, and industry values associated with LinkedIn profiles...
+
 _Before running this_ you'll likely want maximize the number of accessible accounts by getting a few connections with the target company.
 
 The LinkedIn web interface pulls accounts from an API when browsing the `/people` path of a company profile. Output from each call is highly structured, minimizing guess work involved with extracting fields from each profile. `Peasant` automates the process of extracting profiles for a given company by crafting the API calls and dumping the output to a CSV file.
