@@ -16,10 +16,15 @@ The easiest way to get these values is to use the developer tools and access the
 
 ## Example
 
-Here is a basic example command:
+First, set the cookies `environment` variable.
 
-```
+```bash
 export cookies='JSESSIOND=<theidentifier>;li_at=<thevalue>;'
+```
+
+Then run `peasant.py`:
+
+```bash
 ./peasant.py --cookies "$cookies" \
     -of linked_test.csv \
     -cn black-hills-information-security \
