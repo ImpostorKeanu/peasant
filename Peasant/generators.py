@@ -1,5 +1,5 @@
 
-def genVoyagerURL(base_url,company_id,start,max_facet_values=10):
+def genVoyagerSearchURL(base_url,company_id,start,max_facet_values=10):
     '''Generate a URL for the Voyarger API.
 
     base_url - str - Base LinkedIn URL

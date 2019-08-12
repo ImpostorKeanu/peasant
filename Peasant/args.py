@@ -13,9 +13,10 @@ parser.add_argument('-c','--cookies',
     user. During development, the following cookies were required: li_at
     and JSESSIONID'
     ''')
-parser.add_argument('-cn','--company-name',
+parser.add_argument('-cns','--company-names',
+    nargs='+',
     required=True,
-    help='''LinkedIn company name, as observed in URL of company profile,
+    help='''Space delimited LinkedIn company names, as observed in URL of company profile,
     e.g.: BHIS identifier in /company/black-hills-information-security/people/
     ''')
 parser.add_argument('-of','--output-file',
@@ -34,3 +35,6 @@ parser.add_argument('-ua','--user-agent',
 parser.add_argument('-vs','--verify-ssl',
     action='store_true',
     help='Verify SSL certificate.')
+parser.add_argument('-ac','--add-contacts',
+    action='store_true',
+    help='When possible, attempt to add contact.')

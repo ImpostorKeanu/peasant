@@ -1,10 +1,10 @@
 class Profile:
 
     ATTRS = ['first_name','last_name','occupation','public_identifier',
-            'industry','location']
+            'industry','location','entity_urn']
 
     def __init__(self,first_name,last_name,occupation,public_identifier,
-            industry,location):
+            industry,location,entity_urn=None):
 
         self.first_name = first_name
         self.last_name = last_name
@@ -13,6 +13,7 @@ class Profile:
         self.pid = self.public_identifier
         self.industry = industry
         self.location = location
+        self.entity_urn = entity_urn
 
     def __repr__(self):
 

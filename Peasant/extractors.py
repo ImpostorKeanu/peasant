@@ -40,7 +40,13 @@ def extractProfile(jelement):
     last_name = mini_profile['lastName']
     occupation = mini_profile['occupation']
     public_identifier = mini_profile['publicIdentifier']
+    entity_urn = mini_profile['entityUrn']
+    if entity_urn:
+        try:
+            entity_urn = entity_urn.split(':')[-1]
+        except:
+            entity_urn = None
 
     # return a Peasant.profile object
     return Profile(first_name,last_name,occupation,
-            public_identifier,industry,location)
+            public_identifier,industry,location,entity_urn)
