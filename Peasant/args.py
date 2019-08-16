@@ -1,4 +1,5 @@
 import argparse
+from sys import stdout
 
 parser = argparse.ArgumentParser(
     description='Pull contacts from an authenticated LinkedIn session.'
@@ -20,7 +21,7 @@ parser.add_argument('-cns','--company-names',
     e.g.: BHIS identifier in /company/black-hills-information-security/people/
     ''')
 parser.add_argument('-of','--output-file',
-    required=True,
+    default=stdout,
     help='Name of file to receive CSV output.')
 parser.add_argument('-p','--proxies',
     nargs='+',

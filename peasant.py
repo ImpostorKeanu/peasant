@@ -4,6 +4,7 @@ import json
 import argparse
 import warnings
 import csv
+from sys import stdout
 from Peasant.validators import *
 from Peasant.parsers import *
 from Peasant.generators import *
@@ -97,13 +98,17 @@ print(f'Writing output to {args.output_file}')
 
 csv_headers = Profile.ATTRS
 written=[]
-with open(args.output_file, 'w') as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(csv_headers)
-    for p in main_profiles:
-        if p not in written:
-            writer.writerow(p.to_row())
-            written.append(p)
+if args.output_file == stdout:
+    csvfile = stdout
+else:
+    csvfile = open(args.output_file,'w')
+
+writer = csv.writer(csvfile)
+writer.writerow(csv_headers)
+for p in main_profiles:
+    if p not in written:
+        writer.writerow(p.to_row())
+        written.append(p)
 
 # ============
 # ADD CONTACTS
@@ -125,4 +130,6 @@ if args.add_contacts:
         session.post(add_url,headers=headers,proxies=args.proxies,
                 verify=args.verify_ssl,json=data)
 
+
 print('Done!')
+csvfile.close()
