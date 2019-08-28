@@ -68,7 +68,7 @@ for company_name in args.company_names:
     
     # Parse the response and extract the information into profiles
     j = resp.json()
-    count,profiles = extractInfo(j)
+    count,profiles = extractInfo(j,company_name,cid)
     print(f'Available profiles: {count}')
     
     # ==========================
@@ -82,7 +82,7 @@ for company_name in args.company_names:
         resp = session.get(genVoyagerSearchURL(args.url,cid,offset,mfv),
                 headers=headers,proxies=args.proxies,
                 verify=args.verify_ssl)
-        icount,iprofiles = extractInfo(resp.json())
+        icount,iprofiles = extractInfo(resp.json(),company_name,cid)
         profiles += iprofiles
         if offset >= count or offset >= 999: break
         offset += mfv

@@ -1,6 +1,6 @@
 from Peasant.profile import Profile
 
-def extractInfo(j):
+def extractInfo(j,company_name,company_id):
     '''Extract information from the JSON object returned after
     making an API call to LinkedIn. Returns an integer indicating
     the total number of results and a list of Peasant.profile objects,
@@ -15,9 +15,9 @@ def extractInfo(j):
     '''
 
     result_count = j['metadata']['totalResultCount']
-    return result_count,[extractProfile(e) for e in j['elements']]
+    return result_count,[extractProfile(e,company_name,company_id) for e in j['elements']]
 
-def extractProfile(jelement):
+def extractProfile(jelement,company_name,company_id):
     '''Derive and return  Peasant.profile object from an element.
     '''
 
@@ -49,4 +49,4 @@ def extractProfile(jelement):
 
     # return a Peasant.profile object
     return Profile(first_name,last_name,occupation,
-            public_identifier,industry,location,entity_urn)
+            public_identifier,industry,location,entity_urn,company_name,company_id)
