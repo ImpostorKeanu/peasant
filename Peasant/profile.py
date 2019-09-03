@@ -4,7 +4,14 @@ class Profile:
             'industry','location','entity_urn','company_name','company_id']
 
     def __init__(self,first_name,last_name,occupation,public_identifier,
-            industry,location,entity_urn=None,company_name=None,company_id=None):
+            industry=None,location=None,entity_urn=None,company_name=None,
+            company_id=None):
+
+        industry = industry or ''
+        location = location or ''
+        entity_urn = entity_urn or ''
+        company_name = company_name or ''
+        company_id = company_id or ''
 
         self.first_name = first_name
         self.last_name = last_name

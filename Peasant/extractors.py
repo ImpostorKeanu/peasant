@@ -18,7 +18,7 @@ def extractInfo(j,company_name,company_id):
     return result_count,[extractProfile(e,company_name,company_id) for e in j['elements']]
 
 def extractProfile(jelement,company_name,company_id):
-    '''Derive and return  Peasant.profile object from an element.
+    '''Derive and return Peasant.profile object from an element.
     '''
 
     j = jelement
@@ -50,3 +50,14 @@ def extractProfile(jelement,company_name,company_id):
     # return a Peasant.profile object
     return Profile(first_name,last_name,occupation,
             public_identifier,industry,location,entity_urn,company_name,company_id)
+
+def extractInvitation(jelement):
+    '''Derive and return a Peasant.profile object from a JSON object
+    ("toMember).
+    '''
+
+    j = jelement
+    return Profile(first_name=j['firstName'],last_name=j['lastName'],
+            occupation=j['occupation'],
+            entity_urn=j['entityUrn'].split(':')[-1],
+            public_identifier=j['publicIdentifier'])
