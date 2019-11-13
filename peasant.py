@@ -11,6 +11,8 @@ from Peasant.generators import *
 from Peasant.extractors import *
 from Peasant.auth import *
 from Peasant.args import parser as arg_parser
+from pathlib import Path
+import pdb
 warnings.filterwarnings('ignore')
 
 # ==================================
@@ -18,6 +20,27 @@ warnings.filterwarnings('ignore')
 # ==================================
 
 args = arg_parser.parse_args()
+
+# ========================
+# HANDLE PREVIOUS CSV FILE
+# ========================
+
+main_profiles = []
+if args.output_file != stdout and Path(args.output_file).exists():
+    print(f'Loading CSV file: {args.output_file}')
+
+    with open(args.output_file) as infile:
+        rows = [r for r in csv.reader(infile)]
+        if rows.__len__() > 2:
+            columns = rows[0]
+            main_profiles = [
+                Profile.from_row(r,columns) for r in rows[1:]
+            ]
+
+    if main_profiles:
+        print(f'Total profiles loaded: {main_profiles.__len__()}')
+    
+# == END HANDLING CSV FILE ===
 
 # Prepare request headers
 headers = {'User-Agent':args.user_agent}
@@ -37,7 +60,6 @@ args.proxies = proxies
 
 # Build a session using the supplied cookies
 session = sessionCookieString(args.cookies)
-main_profiles = []
 for company_name in args.company_names:
     
     # Make the initial response to obtain the company identifier
@@ -49,9 +71,18 @@ for company_name in args.company_names:
     print(f'Company Identifier for {company_name}: {cid}')
     
     # Update headers with CSRF token and restli header
+    jsessionid = session.cookies.get('JSESSIONID')
+
+    if not jsessionid:
+
+        raise Exception(
+                'JSESSIONID not found in response. This is indicative ' \
+                'of invalid cookie values being supplied.'
+            )
+
     session.headers.update(
         {
-            'csrf-token':session.cookies.get('JSESSIONID'),
+            'csrf-token':jsessionid,
             'x-restli-protocol-version':'2.0.0'
         }
     )
@@ -88,8 +119,39 @@ for company_name in args.company_names:
         offset += mfv
         if offset >= 1000: offset = 999
 
-    main_profiles += profiles
+    # =========================
+    # CAPTURE ONLY NEW PROFILES
+    # =========================
 
+    for profile in profiles:
+        if profile not in main_profiles:
+            main_profiles.append(profile)
+
+print(f'Done! Total known profiles: {main_profiles.__len__()}')
+
+# ============
+# ADD CONTACTS
+# ============
+
+if args.add_contacts:
+    add_url = args.url+'/voyager/api/growth/normInvitations'
+    print(f'Sending connection requests...')
+    counter = 0
+    for p in main_profiles:
+        if not p.entity_urn or p.connection_requested: continue
+        counter += 1
+        p.connection_requested = True
+        print(f'Sending Connection Request {counter}: {p.first_name} {p.last_name}, ' \
+              f'{p.occupation} @ {p.company_name}')
+        data = {"emberEntityName":"growth/invitation/norm-invitation",
+                "invitee":{
+                    "com.linkedin.voyager.growth.invitation.InviteeProfile":{
+                        "profileId":f"{p.entity_urn}"
+                        }
+                    },
+                "trackingId":"86us0JMVTy6fXUztPyFKhw=="}
+        session.post(add_url,headers=headers,proxies=args.proxies,
+                verify=args.verify_ssl,json=data)
 # ===========
 # DUMP OUTPUT
 # ===========
@@ -109,27 +171,6 @@ for p in main_profiles:
     if p not in written:
         writer.writerow(p.to_row())
         written.append(p)
-
-# ============
-# ADD CONTACTS
-# ============
-
-if args.add_contacts:
-    add_url = args.url+'/voyager/api/growth/normInvitations'
-    print(f'Attempting to add contacts')
-    for p in main_profiles:
-        if not p.entity_urn: continue
-        print(f'Adding profile urn: {p.entity_urn}')
-        data = {"emberEntityName":"growth/invitation/norm-invitation",
-                "invitee":{
-                    "com.linkedin.voyager.growth.invitation.InviteeProfile":{
-                        "profileId":f"{p.entity_urn}"
-                        }
-                    },
-                "trackingId":"86us0JMVTy6fXUztPyFKhw=="}
-        session.post(add_url,headers=headers,proxies=args.proxies,
-                verify=args.verify_ssl,json=data)
-
 
 print('Done!')
 csvfile.close()
