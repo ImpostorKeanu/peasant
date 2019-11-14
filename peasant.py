@@ -22,6 +22,18 @@ warnings.filterwarnings('ignore')
 
 args = arg_parser.parse_args()
 
+# Prepare request headers
+headers = {'User-Agent':args.user_agent}
+
+# Prepare proxies
+proxies = {}
+for proxy in args.proxies:
+    match = re.match(r'^(https?)',proxy)
+    if not match:
+        raise Exception(f'Invalid proxy supplied: {proxy}')
+    proxies[match.groups()[0]] = proxy
+args.proxies = proxies
+
 # ========================
 # HANDLE PREVIOUS CSV FILE
 # ========================
@@ -49,33 +61,42 @@ if args.output_file != stdout and Path(args.output_file).exists():
 
 if args.cookies:
     session = sessionCookieString(args.cookies)
-elif args.credentials:
-    # TODO: Handle authentication
-    pass
 else:
-    # TODO: Handle interactive authentication
-    pass
+
+    # Handle credentials argument
+    if args.credentials:
+
+        # Split the creds on colon
+        creds = args.credentials.split(':')
+
+        # Assure that a username and password is provided
+        if creds.__len__() < 2:
+            raise Exception('Credentials argument requires a colon ' \
+                f'delimited value, not {args.credentials}')
+
+        username = creds[0]
+
+        # Join on colon to assure that colons within the password
+        # are captured.
+        password = ':'.join(creds[1:])
+
+    else:
+        esprint('Enter credentials to continue')
+        username,password = getCredentials()
+
+    # Build the session from the credentials
+    session = sessionLogin(username,
+            password,
+            headers=headers,
+            proxies=args.proxies,
+            verify_ssl=args.verify_ssl)
 
 # == END HANDLE CREDENTIALS ==
-
-# Prepare request headers
-headers = {'User-Agent':args.user_agent}
-
-# Prepare proxies
-proxies = {}
-for proxy in args.proxies:
-    match = re.match(r'^(https?)',proxy)
-    if not match:
-        raise Exception(f'Invalid proxy supplied: {proxy}')
-    proxies[match.groups()[0]] = proxy
-args.proxies = proxies
 
 # ===================================================
 # BUILD SESSION OBJECT AND EXTRACT COMPANY IDENTIFIER
 # ===================================================
 
-# Build a session using the supplied cookies
-session = sessionCookieString(args.cookies)
 for company_name in args.company_names:
     
     # Make the initial response to obtain the company identifier
@@ -87,7 +108,7 @@ for company_name in args.company_names:
     esprint(f'Company Identifier for {company_name}: {cid}')
     
     # Update headers with CSRF token and restli header
-    jsessionid = session.cookies.get('JSESSIONID')
+    jsessionid = session.cookies.get('JSESSIONID').split('"')[1]
 
     if not jsessionid:
 

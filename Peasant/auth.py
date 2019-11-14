@@ -1,5 +1,7 @@
 import requests
 from Peasant.parsers import *
+from getpass import getpass
+import pdb
 
 def getInput(prompt):
 
@@ -12,61 +14,57 @@ def getInput(prompt):
 def getCredentials():
     
     username = getInput('Username: ')
-    password = getInput('Password: ')
+    password = getpass('Password: ')
 
     return username,password
 
-def sessionLogin(proxies={},verify_ssl=False):
+def parseCsrfParam(value):
+
+    return value.split('&')[1][0:-1]
+
+def sessionLogin(username,password,headers={},
+        base_url='https://www.linkedin.com',
+        proxies={},verify_ssl=False):
     '''
+
+    1. Get cookies required for authentication
+    2. Parse cookie data
+        - uuid in bcookie value is a CSRF parameter for the POST
+          (loginCsrfParam)
+        - bcookie="v=2&xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx";
+    3. POST credentials
+
+
     - Get authentication data/cookies resource: /login
     - POST credentials resource: /checkpoint/lg/login-submit
-
     
     '''
     
     session = requests.Session()
-    resp = session.get('https://www.linkedin.com/login',
-            proxies=proxies,
-            verify=verify_ssl)
-    match = re.search(r'name="loginCsrfParam" value="(?P<token>.+?)"',
-            resp.text)
 
-    if not match:
-        raise Exception('Failed to extract CSRF token from authentication form')
-
-    username = ''
-    while not username:
-        username = input('Username: ')
-
-    password = ''
-    while not password:
-        password = getpass()
-
-    resp = session.post(base_url+'/uas/login-submit',
-            verify=False,
+    # Get cookies
+    session.get(base_url+'/login',
             headers=headers,
             proxies=proxies,
-            data=dict(loginCsrfParam=match.groupdict()['token'],
-            session_key=username,session_password=password,
-            trk='guest_homepage-basic_sign-in-submit')
-        )
+            verify=verify_ssl)
 
-    if not resp.url.endswith('basic_sign-in-submit'):
-        raise Exception('Authentication failed')
+    # POST credentials
+    resp = session.post(base_url+'/checkpoint/lg/login-submit',
+                verify=verify_ssl,
+                headers=headers,
+                proxies=proxies,
+                data={
+                    'session_key':username,
+                    'session_password':password,
+                    'loginCsrfParam':parseCsrfParam(
+                        session.cookies.get('bcookie')
+                    )
+                }
+            )
 
-    headers['Accept']='text/event-stream'
-    headers['Referer']='https://www.linkedin.com/feed/?trk=guest_' \
-            'homepage-basic_sign-in-submit'
-    headers['X-RestLi-Protocol-Version']='2.0.0'
-    headers['Csrf-Token']=session.cookies.get('JSESSIONID')
-    headers['X-LI-Lang']='en_US'
-    headers['X-LI-Track']='{"clientVersion":"1.3.4219.0","osName"' \
-            ':"web","timezoneOffset":-4,"deviceFormFactor":"DESKT' \
-            'OP","mpName":"voyager-web"}'
-    headers['X-li-page-instance']='null'
-    headers['X-li-accept']='application/vnd.linkedin.normalized+json+2.1'
-    session.get(base_url+'/realtime/connect',headers=headers,
-            verify=False,proxies=proxies)
+    # Determine success
+    if resp.status_code != 200 or not resp.request.url.endswith('feed/'):
+        raise Exception('Invalid credentials supplied')
 
     return session
 
