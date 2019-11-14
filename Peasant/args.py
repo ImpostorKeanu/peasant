@@ -8,12 +8,18 @@ parser = argparse.ArgumentParser(
 parser.add_argument('-u','--url',
     default='https://www.linkedin.com',
     help='Base URL to target for requests.')
-parser.add_argument('-c','--cookies',
-    required=True,
+
+auth_group = parser.add_mutually_exclusive_group()
+auth_group.add_argument('-C','--credentials',
+    help='''Colon delimited credentials, e.g. 'username:password', to
+    use for authentication.
+    ''')
+auth_group.add_argument('-c','--cookies',
     help='''Cookies needed to access LinkedIn in context of the correct
     user. During development, the following cookies were required: li_at
     and JSESSIONID'
     ''')
+
 parser.add_argument('-cns','--company-names',
     nargs='+',
     required=True,

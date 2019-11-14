@@ -1,13 +1,33 @@
 import requests
 from Peasant.parsers import *
 
-def sessionLogin(base_url):
-    '''THIS JUST DOESNT WORK AT THE MOMENT *shrug*
+def getInput(prompt):
+
+    i = None
+    while not i:
+        i = input(prompt)
+
+    return i
+
+def getCredentials():
+    
+    username = getInput('Username: ')
+    password = getInput('Password: ')
+
+    return username,password
+
+def sessionLogin(proxies={},verify_ssl=False):
+    '''
+    - Get authentication data/cookies resource: /login
+    - POST credentials resource: /checkpoint/lg/login-submit
+
+    
     '''
     
     session = requests.Session()
-    resp = session.get(base_url,
-            headers=headers,proxies=proxies,verify=False)
+    resp = session.get('https://www.linkedin.com/login',
+            proxies=proxies,
+            verify=verify_ssl)
     match = re.search(r'name="loginCsrfParam" value="(?P<token>.+?)"',
             resp.text)
 

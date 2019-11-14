@@ -11,6 +11,7 @@ from Peasant.generators import *
 from Peasant.extractors import *
 from Peasant.auth import *
 from Peasant.args import parser as arg_parser
+from Peasant.suffix_printer import *
 from pathlib import Path
 import pdb
 warnings.filterwarnings('ignore')
@@ -27,7 +28,7 @@ args = arg_parser.parse_args()
 
 main_profiles = []
 if args.output_file != stdout and Path(args.output_file).exists():
-    print(f'Loading CSV file: {args.output_file}')
+    esprint(f'Loading CSV file: {args.output_file}')
 
     with open(args.output_file) as infile:
         rows = [r for r in csv.reader(infile)]
@@ -38,9 +39,24 @@ if args.output_file != stdout and Path(args.output_file).exists():
             ]
 
     if main_profiles:
-        print(f'Total profiles loaded: {main_profiles.__len__()}')
+        esprint(f'Total profiles loaded: {main_profiles.__len__()}')
     
 # == END HANDLING CSV FILE ===
+
+# ==================
+# HANDLE CREDENTIALS
+# ==================
+
+if args.cookies:
+    session = sessionCookieString(args.cookies)
+elif args.credentials:
+    # TODO: Handle authentication
+    pass
+else:
+    # TODO: Handle interactive authentication
+    pass
+
+# == END HANDLE CREDENTIALS ==
 
 # Prepare request headers
 headers = {'User-Agent':args.user_agent}
@@ -68,7 +84,7 @@ for company_name in args.company_names:
             proxies=args.proxies,
             verify=args.verify_ssl)
     cid = company_id = parseCompanyId(resp.text)
-    print(f'Company Identifier for {company_name}: {cid}')
+    esprint(f'Company Identifier for {company_name}: {cid}')
     
     # Update headers with CSRF token and restli header
     jsessionid = session.cookies.get('JSESSIONID')
@@ -93,20 +109,20 @@ for company_name in args.company_names:
     
     # Get the initial set of profiles to determine the total available
     # number.
-    print('Getting initial profiles')
+    esprint('Getting initial profiles')
     resp = session.get(genVoyagerSearchURL(args.url,cid,0,10),
         headers=headers,proxies=args.proxies,verify=args.verify_ssl)
     
     # Parse the response and extract the information into profiles
     j = resp.json()
     count,profiles = extractInfo(j,company_name,cid)
-    print(f'Available profiles: {count}')
+    esprint(f'Available profiles: {count}')
     
     # ==========================
     # EXTRACT REMAINING PROFILES
     # ==========================
     
-    print('Extracting remaining profiles...')
+    esprint('Extracting remaining profiles...')
     offset = 10
     mfv = max_facet_values = 10
     while True:
@@ -127,7 +143,7 @@ for company_name in args.company_names:
         if profile not in main_profiles:
             main_profiles.append(profile)
 
-print(f'Done! Total known profiles: {main_profiles.__len__()}')
+esprint(f'Done! Total known profiles: {main_profiles.__len__()}')
 
 # ============
 # ADD CONTACTS
@@ -135,13 +151,13 @@ print(f'Done! Total known profiles: {main_profiles.__len__()}')
 
 if args.add_contacts:
     add_url = args.url+'/voyager/api/growth/normInvitations'
-    print(f'Sending connection requests...')
+    esprint(f'Sending connection requests...')
     counter = 0
     for p in main_profiles:
         if not p.entity_urn or p.connection_requested: continue
         counter += 1
         p.connection_requested = True
-        print(f'Sending Connection Request {counter}: {p.first_name} {p.last_name}, ' \
+        esprint(f'Sending Connection Request {counter}: {p.first_name} {p.last_name}, ' \
               f'{p.occupation} @ {p.company_name}')
         data = {"emberEntityName":"growth/invitation/norm-invitation",
                 "invitee":{
@@ -156,7 +172,7 @@ if args.add_contacts:
 # DUMP OUTPUT
 # ===========
 
-print(f'Writing output to {args.output_file}')
+esprint(f'Writing output to {args.output_file}')
 
 csv_headers = Profile.ATTRS
 written=[]
@@ -172,5 +188,5 @@ for p in main_profiles:
         writer.writerow(p.to_row())
         written.append(p)
 
-print('Done!')
+esprint('Done!')
 csvfile.close()
