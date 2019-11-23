@@ -1,5 +1,3 @@
-import pdb
-
 class Profile:
 
     ATTRS = ['first_name','last_name','occupation','public_identifier',

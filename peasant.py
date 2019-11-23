@@ -4,7 +4,8 @@ import json
 import argparse
 import warnings
 import csv
-from sys import stdout
+from sys import stdout, exit
+from pathlib import Path
 from Peasant.validators import *
 from Peasant.parsers import *
 from Peasant.generators import *
@@ -12,27 +13,26 @@ from Peasant.extractors import *
 from Peasant.auth import *
 from Peasant.args import parser as arg_parser
 from Peasant.suffix_printer import *
-from pathlib import Path
+from Peasant.banner import banner
+from Peasant.generic import *
 import pdb
+
 warnings.filterwarnings('ignore')
+
+print(banner)
 
 # ==================================
 # HANDLE ARGUMENTS AND SET VARIABLES
 # ==================================
 
 args = arg_parser.parse_args()
-
-# Prepare request headers
 headers = {'User-Agent':args.user_agent}
 
-# Prepare proxies
-proxies = {}
-for proxy in args.proxies:
-    match = re.match(r'^(https?)',proxy)
-    if not match:
-        raise Exception(f'Invalid proxy supplied: {proxy}')
-    proxies[match.groups()[0]] = proxy
-args.proxies = proxies
+# ===========
+# SET PROXIES
+# ===========
+
+args.proxies = handleProxies(args.proxies)
 
 # ========================
 # HANDLE PREVIOUS CSV FILE
@@ -53,77 +53,31 @@ if args.output_file != stdout and Path(args.output_file).exists():
     if main_profiles:
         esprint(f'Total profiles loaded: {main_profiles.__len__()}')
     
-# == END HANDLING CSV FILE ===
-
 # ==================
 # HANDLE CREDENTIALS
 # ==================
 
-if args.cookies:
-    session = sessionCookieString(args.cookies)
-else:
+session = Session(headers=headers,
+        proxies=args.proxies,
+        verify=args.verify_ssl)
+basic_profile = session.login(args)
+session.spoofProfile('erika-mcduffie-767394bb')
+exit()
 
-    # Handle credentials argument
-    if args.credentials:
-
-        # Split the creds on colon
-        creds = args.credentials.split(':')
-
-        # Assure that a username and password is provided
-        if creds.__len__() < 2:
-            raise Exception('Credentials argument requires a colon ' \
-                f'delimited value, not {args.credentials}')
-
-        username = creds[0]
-
-        # Join on colon to assure that colons within the password
-        # are captured.
-        password = ':'.join(creds[1:])
-
-    else:
-        esprint('Enter credentials to continue')
-        username,password = getCredentials()
-
-    # Build the session from the credentials
-    session = sessionLogin(username,
-            password,
-            headers=headers,
-            proxies=args.proxies,
-            verify_ssl=args.verify_ssl)
-
-# == END HANDLE CREDENTIALS ==
-
-# ===================================================
-# BUILD SESSION OBJECT AND EXTRACT COMPANY IDENTIFIER
-# ===================================================
+# ============================
+# BEGIN EXTRACTING INFORMATION
+# ============================
 
 for company_name in args.company_names:
+
+    # ===================================================
+    # BUILD SESSION OBJECT AND EXTRACT COMPANY IDENTIFIER
+    # ===================================================
     
     # Make the initial response to obtain the company identifier
-    resp = session.get(args.url+'/company/'+company_name+'/people/',
-            headers=headers,
-            proxies=args.proxies,
-            verify=args.verify_ssl)
-    cid = company_id = parseCompanyId(resp.text)
+    cid = company_id = session.getCompanyId(company_name)
     esprint(f'Company Identifier for {company_name}: {cid}')
-    
-    # Update headers with CSRF token and restli header
-    jsessionid = session.cookies.get('JSESSIONID').split('"')[1]
 
-    if not jsessionid:
-
-        raise Exception(
-                'JSESSIONID not found in response. This is indicative ' \
-                'of invalid cookie values being supplied.'
-            )
-
-    session.headers.update(
-        {
-            'csrf-token':jsessionid,
-            'x-restli-protocol-version':'2.0.0'
-        }
-    )
-    
     # =========================
     # BEGIN EXTRACTING PROFILES
     # =========================
@@ -131,25 +85,22 @@ for company_name in args.company_names:
     # Get the initial set of profiles to determine the total available
     # number.
     esprint('Getting initial profiles')
-    resp = session.get(genVoyagerSearchURL(args.url,cid,0,10),
-        headers=headers,proxies=args.proxies,verify=args.verify_ssl)
+    #resp = session.get(genVoyagerSearchPath(cid,0,10))
+    resp = session.getContactSearchResults(cid,0,10)
     
     # Parse the response and extract the information into profiles
-    j = resp.json()
-    count,profiles = extractInfo(j,company_name,cid)
+    count,profiles = extractInfo(resp.json(),company_name,cid)
     esprint(f'Available profiles: {count}')
     
     # ==========================
     # EXTRACT REMAINING PROFILES
     # ==========================
     
-    esprint('Extracting remaining profiles...')
+    esprint('Extracting remaining profiles (this will take some time)')
     offset = 10
     mfv = max_facet_values = 10
     while True:
-        resp = session.get(genVoyagerSearchURL(args.url,cid,offset,mfv),
-                headers=headers,proxies=args.proxies,
-                verify=args.verify_ssl)
+        resp = session.getContactSearchResults(cid,offset,mfv)
         icount,iprofiles = extractInfo(resp.json(),company_name,cid)
         profiles += iprofiles
         if offset >= count or offset >= 999: break
@@ -171,24 +122,28 @@ esprint(f'Done! Total known profiles: {main_profiles.__len__()}')
 # ============
 
 if args.add_contacts:
-    add_url = args.url+'/voyager/api/growth/normInvitations'
+
     esprint(f'Sending connection requests...')
     counter = 0
     for p in main_profiles:
+
+        # Skip anyprofile without an entity_urn or that has already
+        # been requested during a previous run
         if not p.entity_urn or p.connection_requested: continue
         counter += 1
-        p.connection_requested = True
-        esprint(f'Sending Connection Request {counter}: {p.first_name} {p.last_name}, ' \
-              f'{p.occupation} @ {p.company_name}')
-        data = {"emberEntityName":"growth/invitation/norm-invitation",
-                "invitee":{
-                    "com.linkedin.voyager.growth.invitation.InviteeProfile":{
-                        "profileId":f"{p.entity_urn}"
-                        }
-                    },
-                "trackingId":"86us0JMVTy6fXUztPyFKhw=="}
-        session.post(add_url,headers=headers,proxies=args.proxies,
-                verify=args.verify_ssl,json=data)
+        esprint(f'Sending Connection Request {counter}: {p.first_name} ' \
+                f'{p.last_name}, {p.occupation} @ {p.company_name}')
+        resp = session.postConnectionRequest(p.entity_urn)
+        try:
+            status = resp.json()['status']
+            if status == 429:
+                esprint('API request limit hit. Halting execution')
+                break
+            else:
+                p.connection_requested = True
+        except:
+            pass
+
 # ===========
 # DUMP OUTPUT
 # ===========
