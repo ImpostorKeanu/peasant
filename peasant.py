@@ -31,7 +31,6 @@ args = arg_parser.parse_args()
 if not args.cmd:
     arg_parser.print_help()
     exit()
-
 headers = {'User-Agent':args.user_agent}
 
 # ===========
@@ -51,40 +50,68 @@ if 'output_file' in args.__dict__:
         main_profiles = loadProfiles(args)
         esprint(f'Total profiles loaded: {main_profiles.__len__()}')
     else:
-        esprint(f'Starting new CSV file: {args.output_file}')
+        if args.output_file != stdout:
+            esprint(f'Starting new CSV file: {args.output_file}')
         main_profiles = []
+
+try:
+
+    # =====================
+    # HANDLE AUTHENTICATION
+    # =====================
     
-# ==================
-# HANDLE CREDENTIALS
-# ==================
-session = Session(headers=headers,
-        proxies=args.proxies,
-        verify=args.verify_ssl)
-session.login(args)
+    session = Session(headers=headers,
+            proxies=args.proxies,
+            verify=args.verify_ssl)
+    
+    esprint('Authenticating session')
+    session.login(args)
+    profile = session.getBasicProfile()
 
-if not session.authenticated:
-    esprint('Authentication failed! Check credential settings and ' \
-            'try again.')
-    exit()
+    if not session.authenticated:
+        esprint('Authentication failed! Check credential settings ' \
+                'and try again.')
+        exit()
+    
+    if profile.premiumSubscriber:
+        esprint('Authenticated as a premium subscriber')
+    
+    # ===============
+    # EXECUTE COMMAND
+    # ===============
+    
+    # Harvest contacts
+    if args.cmd == 'harvest':
+    
+        harvest_contacts(args,session,main_profiles)
+    
+    # Add contacts from CSV file
+    elif args.cmd == 'add_contacts':
+       
+        esprint('Sending connection requests, which will take '\
+                'some time...')
+        main_profiles = addContacts(session,main_profiles,args.message)
+        esprint(f'Writing profiles to file: {args.output_file}')
+        writeProfiles(args,main_profiles)
+    
+    # Profile spoofing
+    elif args.cmd == 'spoof_profile':
+       
+        esprint('Spoofing basic profile information...')
+        session.spoofBasicInfo(args.public_identifier)
+    
+        esprint('Clearing current profile education and spoofing ' \
+                'target content...')
+        session.deleteEducation()
+        session.spoofEducation(args.public_identifier)
+    
+        esprint('Clearing current profile experience and spoofing ' \
+                'target content...')
+        session.deleteExperience()
+        session.spoofExperience(args.public_identifier)
 
-if args.cmd == 'harvest':
-    harvest_contacts(args,session)
-elif args.cmd == 'add_contacts':
-    pass
-elif args.cmd == 'spoof_profile':
-   
-    esprint('Spoofing basic profileinformation...',end='')
-    session.spoofBasicInfo(args.public_identifier)
-    print('done',file=stdout)
+finally:
 
-    esprint('Clearing current profile education and spoofing ' \
-            'target content...',end='')
-    session.deleteEducation()
-    session.spoofEducation(args.public_identifier)
-    print('done',file=stdout)
-
-    esprint('Clearing current profile experience and spoofing ' \
-            'target content...',end='')
-    session.deleteExperience()
-    session.spoofExperience(args.public_identifier)
-    print('done',file=stdout)
+    esprint('Logging out')
+    #session.getLogout()
+    esprint('Done...exiting')

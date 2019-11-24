@@ -27,8 +27,9 @@ def parseCompanyId(text_body):
 
 def parseJSESSIONID(value):
 
-    return re.match('"?(ajax:[0-9].+)"?',value) \
+    value = re.search('ajax:([0-9]+)',value) \
             .groups()[0]
+    return f'ajax:{value}'
 
 def parseCredentials(credentials):
 

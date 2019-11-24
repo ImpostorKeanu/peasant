@@ -2,13 +2,14 @@ from Peasant.exceptions import *
 from Peasant.suffix_printer import *
 from Peasant.extractors import *
 from Peasant.generic import *
+import pdb
 
-def harvest_contacts(args,session):
+def harvest_contacts(args,session,main_profiles=[]):
 
     # ============================
     # BEGIN EXTRACTING INFORMATION
     # ============================
-    
+   
     for company_name in args.company_names:
     
         # ===================================================
@@ -42,7 +43,10 @@ def harvest_contacts(args,session):
         
         esprint('Extracting remaining profiles (this will take some time)')
         offset,max_facet_values = 10,10
-        profiles = extractProfiles(session,offset=offset,
+        profiles = extractProfiles(session=session,
+                company_name=company_name,
+                company_id=cid,
+                offset=offset,
                 max_facet_values=max_facet_values)
     
         # =========================
@@ -54,6 +58,7 @@ def harvest_contacts(args,session):
                 main_profiles.append(profile)
     
     esprint(f'Done! Total known profiles: {main_profiles.__len__()}')
+    esprint(f'Logging out of LinkedIn')
     
     # ============
     # ADD CONTACTS
@@ -62,6 +67,9 @@ def harvest_contacts(args,session):
     if args.add_contacts:
     
         esprint(f'Sending connection requests...')
+
+        # Must track profiles here since addContacts will
+        # update the connection_sent attribute to True
         main_profiles = addContacts(session,main_profiles)
     
     # ===========

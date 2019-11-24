@@ -69,13 +69,24 @@ def extractInvitation(jelement):
             entity_urn=j['entityUrn'].split(':')[-1],
             public_identifier=j['publicIdentifier'])
 
-def extractProfiles(session,offset=10,max_facet_values=10):
+def extractProfiles(session,company_name,company_id,offset=10,
+        max_facet_values=10):
+
     profiles = []
     while True:
-        resp = session.getContactSearchResults(cid,offset,mfv)
-        icount,iprofiles = extractInfo(resp.json(),company_name,cid)
+
+        resp = session.getContactSearchResults(company_id,
+                offset,max_facet_values)
+
+        icount,iprofiles = extractInfo(resp.json(),
+                company_name,company_id)
+
         profiles += iprofiles
-        if offset >= count or offset >= 999: break
-        offset += mfv
+
+        if offset >= icount or offset >= 999: break
+
+        offset += max_facet_values
+
         if offset >= 1000: offset = 999
+
     return profiles

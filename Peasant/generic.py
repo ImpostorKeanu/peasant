@@ -33,7 +33,7 @@ def writeProfiles(args,profiles):
             written.append(p)
     csvfile.close()
 
-def addContacts(session, profiles):
+def addContacts(session,profiles,message=None):
     counter = 0
     for p in profiles:
 
@@ -43,16 +43,21 @@ def addContacts(session, profiles):
         counter += 1
         esprint(f'Sending Connection Request {counter}: {p.first_name} ' \
                 f'{p.last_name}, {p.occupation} @ {p.company_name}')
-        resp = session.postConnectionRequest(p.entity_urn)
-        try:
-            status = resp.json()['status']
-            if status == 429:
-                esprint('API request limit hit. Halting execution')
-                break
-            else:
-                p.connection_requested = True
-        except:
-            pass
+        resp = session.postConnectionRequest(
+                urn=p.entity_urn,
+                message=message)
+        if resp.status_code == 201:
+            p.connection_requested = True
+        else:
+            try:
+                status = resp.json()['status']
+                if status == 429:
+                    esprint('API request limit hit. Halting execution')
+                    break
+                else:
+                    p.connection_requested = True
+            except:
+                pass
 
     return profiles
 

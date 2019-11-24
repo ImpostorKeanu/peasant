@@ -57,7 +57,7 @@ output_file = Argument('-of','--output-file',
     help='''Name of file to receive CSV output (Default: stdout). If a
     file name is provided and that file already exists, it will be read
     into memory and be treated as previous output. This provides a level
-    of efficiency by allowing the scrept to avoid sending multiple connection
+    of efficiency by allowing the script to avoid sending multiple connection
     requests for the same profile.
     ''')
 
@@ -91,39 +91,21 @@ public_identifier = Argument('-pu','--public-identifier',
         required=True)
 input_file = Argument('-if','--input-file',
         help='Input CSV file to extract records',
-        required=True)
+        required=True,
+        dest='output_file')
 
 # == END ARGUMENT DEFINITION ==
+
+# =============================
+# ARGUMENT PARSER CONFIGURATION
+# =============================
 
 parser = argparse.ArgumentParser(
     description=f'''Detect, generate, and collect connection requests
     from LinkedIn'''
 )
 parser.set_defaults(cmd=None)
-
-# =================
-# UNIVERSAL OPTIONS
-# =================
-
-# Auth Options
-auth_options = parser.add_argument_group('Authentication Parameters (OPTIONAL)',
-        description='''Determine how to authenticate to LinkedIn. User is
-        prompted for credentials if one of these mutually-exclusive options
-        are not provided.
-        ''')
-credential_group = auth_options.add_mutually_exclusive_group()
-credentials.add(credential_group)
-cookies.add(credential_group)
-
-# MISC Options
-misc_group = parser.add_argument_group('Miscellaneous Parameters (OPTIONAL)',
-        description='Additional parameters with sane defaults')
-url.add(misc_group)
-proxies.add(misc_group)
-user_agent.add(misc_group)
-verify_ssl.add(misc_group)
-
-subparsers = parser.add_subparsers(help='sub-command help',
+subparsers = parser.add_subparsers(help='Supported Subcommands',
         metavar='')
 
 # =================
@@ -149,6 +131,25 @@ output_group = harvest.add_argument_group('Output Parameters (OPTIONAL)',
         description='Configure output options.')
 output_file.add(output_group)
 
+# Auth Options
+auth_options = harvest.add_argument_group('Authentication Parameters (OPTIONAL)',
+        description='''Determine how to authenticate to LinkedIn. User is
+        prompted for credentials if one of these mutually-exclusive options
+        are not provided.
+        ''')
+credential_group = auth_options.add_mutually_exclusive_group()
+credentials.add(credential_group)
+cookies.add(credential_group)
+
+# MISC Options
+misc_group = harvest.add_argument_group('Miscellaneous Parameters (OPTIONAL)',
+        description='Additional parameters with sane defaults')
+url.add(misc_group)
+proxies.add(misc_group)
+user_agent.add(misc_group)
+verify_ssl.add(misc_group)
+
+
 # ======================
 # ADD CONTACTS SUBPARSER
 # ======================
@@ -164,6 +165,10 @@ input_options = add_contacts.add_argument_group(
         'Input Options (REQUIRED)'
     )
 input_file.add(input_options)
+input_options.add_argument('-m','--message',
+    default=None,
+    help='''Message to send for each connection request. (OPTIONAL)
+    ''')
 
 # Auth Options
 auth_options = add_contacts.add_argument_group('Authentication Parameters (OPTIONAL)',
@@ -175,14 +180,8 @@ credential_group = auth_options.add_mutually_exclusive_group()
 credentials.add(credential_group)
 cookies.add(credential_group)
 
-# Output Options
-output_group = add_contacts.add_argument_group('Output Parameters (OPTIONAL)',
-        description='Configure output options.')
-output_file.add(output_group)
-
 # MISC Options
-misc_group = add_contacts.add_argument_group(
-        'Miscellaneous Parameters (OPTIONAL)',
+misc_group = add_contacts.add_argument_group('Miscellaneous Parameters (OPTIONAL)',
         description='Additional parameters with sane defaults')
 url.add(misc_group)
 proxies.add(misc_group)
@@ -206,8 +205,7 @@ targeting_options = spoof.add_argument_group(
 public_identifier.add(targeting_options)
 
 # Auth Options
-auth_options = spoof.add_argument_group(
-        'Authentication Parameters (OPTIONAL)',
+auth_options = spoof.add_argument_group('Authentication Parameters (OPTIONAL)',
         description='''Determine how to authenticate to LinkedIn. User is
         prompted for credentials if one of these mutually-exclusive options
         are not provided.
@@ -217,10 +215,10 @@ credentials.add(credential_group)
 cookies.add(credential_group)
 
 # MISC Options
-misc_group = spoof.add_argument_group(
-        'Miscellaneous Parameters (OPTIONAL)',
+misc_group = spoof.add_argument_group('Miscellaneous Parameters (OPTIONAL)',
         description='Additional parameters with sane defaults')
 url.add(misc_group)
 proxies.add(misc_group)
 user_agent.add(misc_group)
 verify_ssl.add(misc_group)
+

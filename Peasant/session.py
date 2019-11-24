@@ -186,23 +186,30 @@ class Session(requests.Session):
             }
         )
 
-        return self.getBasicProfile(*args,**kwargs)
+        profile = self.getBasicProfile(*args,**kwargs)
 
-    def getBasicProfile(self,*args,**kwargs):
+        self.authenticated = True
+
+        return profile
+
+    @is_authenticated
+    def getBasicProfile(self):
         '''Get basic profile information.
         '''
+
+        path = '/voyager/api/me'
 
         # Try to request current profile info. If a status code
         # other than 200 is received, we know the cookies are
         # invalid
-        resp = self.get('/voyager/api/me',*args,**kwargs)
+        resp = self.get(path)
         if resp.status_code != 200:
-            raise Exception('Invlid cookies supplied! Request ' \
-                    'for /voyager/api/me returned a status code ' \
-                    'other than 200')
-        self.authenticated = True
-        js = resp.json()
+            raise SessionException(
+                    'Failed to get basic profile. This suggests ' \
+                    'invalid credentials or stale cookies.'
+                )
 
+        js = resp.json()
         for obj in js['included']:
             if 'firstName' in obj and 'lastName' in obj:
                 break
@@ -677,7 +684,6 @@ class Session(requests.Session):
 
     def postLogin(self,username,password,*args,**kwargs):
         self.get('/login')
-        pdb.set_trace()
         try:
             # TODO: Reckless parsing of csrf_param value here
             csrf_param = re.search('&(.+)"',self.cookies.get('bcookie')) \
@@ -765,7 +771,9 @@ class Session(requests.Session):
 
     @is_authenticated
     def postConnectionRequest(self,urn,
-            tracking_id="86us0JMVTy6fXUztPyFKhw==",*args,**kwargs):
+            tracking_id="86us0JMVTy6fXUztPyFKhw==",
+            message=None,
+            *args,**kwargs):
         '''Forge a connection request for a given member, as identified
         by URN.
         '''
@@ -778,13 +786,14 @@ class Session(requests.Session):
                         "profileId":urn
                         }
                     },
-                "trackingId":"86us0JMVTy6fXUztPyFKhw=="}
+                "trackingId":tracking_id}
+
+        if message: data['message'] = message
 
         return self.post(path,json=data,*args,**kwargs)
 
     @is_authenticated
     def getContactSearchResults(self,company_id,start,
-
             max_facet_values=10,*args,**kwargs):
 
         if self.headers.get('Accept'): del(self.headers['Accept'])
