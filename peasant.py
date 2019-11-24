@@ -27,8 +27,10 @@ print(banner)
 # HANDLE ARGUMENTS AND SET VARIABLES
 # ==================================
 
-pargs = arg_parser.parse_args()
-exit()
+args = arg_parser.parse_args()
+if not args.cmd:
+    arg_parser.print_help()
+    exit()
 
 headers = {'User-Agent':args.user_agent}
 
@@ -42,13 +44,15 @@ args.proxies = handleProxies(args.proxies)
 # HANDLE PREVIOUS CSV FILE
 # ========================
 
-if args.output_file != stdout and Path(args.output_file).exists():
-    esprint(f'Loading CSV file: {args.output_file}')
-    main_profiles = loadProfiles(args)
-    esprint(f'Total profiles loaded: {main_profiles.__len__()}')
-else:
-    esprint(f'Starting new CSV file: {args.output_file}')
-    main_profiles = []
+if 'output_file' in args.__dict__:
+
+    if args.output_file != stdout and Path(args.output_file).exists():
+        esprint(f'Loading CSV file: {args.output_file}')
+        main_profiles = loadProfiles(args)
+        esprint(f'Total profiles loaded: {main_profiles.__len__()}')
+    else:
+        esprint(f'Starting new CSV file: {args.output_file}')
+        main_profiles = []
     
 # ==================
 # HANDLE CREDENTIALS
@@ -56,6 +60,31 @@ else:
 session = Session(headers=headers,
         proxies=args.proxies,
         verify=args.verify_ssl)
+session.login(args)
 
-#if args.command == 'harvest':
-#    harvest_contacts(args,session)
+if not session.authenticated:
+    esprint('Authentication failed! Check credential settings and ' \
+            'try again.')
+    exit()
+
+if args.cmd == 'harvest':
+    harvest_contacts(args,session)
+elif args.cmd == 'add_contacts':
+    pass
+elif args.cmd == 'spoof_profile':
+   
+    esprint('Spoofing basic profileinformation...',end='')
+    session.spoofBasicInfo(args.public_identifier)
+    print('done',file=stdout)
+
+    esprint('Clearing current profile education and spoofing ' \
+            'target content...',end='')
+    session.deleteEducation()
+    session.spoofEducation(args.public_identifier)
+    print('done',file=stdout)
+
+    esprint('Clearing current profile experience and spoofing ' \
+            'target content...',end='')
+    session.deleteExperience()
+    session.spoofExperience(args.public_identifier)
+    print('done',file=stdout)

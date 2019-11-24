@@ -218,7 +218,7 @@ class Session(requests.Session):
         authentication to LinkedIn using a call to
         `Session.postLogin`.
         '''
-
+    
         return self.postLogin(*parseCredentials(credentials))
 
     def userPassAuth(self,username,password,*args,**kwargs):
@@ -384,6 +384,20 @@ class Session(requests.Session):
         self.spoofExperience(public_identifier)
 
         return True
+
+    @is_authenticated
+    def spoofBasicInfo(self,public_identifier):
+        '''Spoof basic profile information from profile identified
+        via the public_identifier.
+        '''
+
+        raw_profile = rp = self.getProfile(public_identifier,basic=True) \
+                ['elements'][0]
+        obj = {k:v for k,v in rp.items() if k.startswith('multiLocale')}
+        resp = self.postBasicProfileUpdate(obj)
+
+        return resp
+
 
     @is_authenticated
     def spoofExperience(self,public_identifier):
@@ -663,6 +677,7 @@ class Session(requests.Session):
 
     def postLogin(self,username,password,*args,**kwargs):
         self.get('/login')
+        pdb.set_trace()
         try:
             # TODO: Reckless parsing of csrf_param value here
             csrf_param = re.search('&(.+)"',self.cookies.get('bcookie')) \
