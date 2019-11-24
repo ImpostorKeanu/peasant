@@ -192,7 +192,6 @@ class Session(requests.Session):
 
         return profile
 
-    @is_authenticated
     def getBasicProfile(self):
         '''Get basic profile information.
         '''
