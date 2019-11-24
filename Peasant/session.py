@@ -5,6 +5,7 @@ from Peasant.generic import *
 from Peasant.parsers import *
 from Peasant.suffix_printer import *
 from Peasant.basic_profile import BasicProfile
+from Peasant.exceptions import *
 from functools import wraps
 from types import MethodType
 from datetime import datetime
@@ -238,9 +239,10 @@ class Session(requests.Session):
         path = '/voyager/api/me'
         obj = self.get(path,*args,**kwargs).json()
 
-        assert 'included' in obj and obj['included'],(
-            'Failed to obtain current profile information'
-        )
+        if 'included' not in obj or not obj['included']:
+            raise SessionException(
+                'Failed to obtain current profile information'
+            )
         
         return obj['included'][0]['publicIdentifier']
 
@@ -358,7 +360,8 @@ class Session(requests.Session):
 
         resp = self.post(path,json=data,params=params)
 
-        assert resp.status_code == 202,'Profile update failed!'
+        checkStatus(resp.status_code,202,
+                'Profile update failed')
 
         return True
 
@@ -528,9 +531,10 @@ class Session(requests.Session):
 
         path = '/voyager/api/identity/dash/profileCertifications'
         resp = self.post(path,json=data,params=params)
-        assert resp.status_code == 201,(
-               'Failed to create new certification'
-            )
+
+        checkStatus(resp.status_code,201,
+                'Failed to create new certificateion')
+
         return resp
 
     @is_authenticated
@@ -569,9 +573,9 @@ class Session(requests.Session):
 
         path = '/voyager/api/identity/dash/profileEducations'
         resp = self.post(path,json=data,params=params)
-        assert resp.status_code == 201,(
-                'Failed to create new education'
-            )
+
+        checkStatus(resp.status_code,201,
+                'Failed to create new education')
 
         return resp
 
@@ -581,9 +585,9 @@ class Session(requests.Session):
 
         path = '/voyager/api/identity/dash/profilePositions'
         resp = self.post(path,json=data,params=params)
-        assert resp.status_code == 201,(
-                'Failed to create new experience'
-            )
+
+        checkStatus(resp.status_code,201,
+                'Failed to create new experience')
 
         return resp
 
@@ -623,9 +627,8 @@ class Session(requests.Session):
                 resp = self.versionizedRequest(path=p,
                         method='delete')
 
-                assert resp.status_code == 204,(
-                    'Failed to delete education'
-                )
+                checkStatus(resp.status_code,204,
+                        'Failed to delete education') 
 
                 responses.append(resp)
 
@@ -651,9 +654,8 @@ class Session(requests.Session):
                 resp = self.versionizedRequest(path=p,
                     method='delete')
 
-                assert resp.status_code == 204,(
-                    'Failed to delete experience'
-                )
+                checkStatus(resp.status_code,204,
+                        'Failed to delete experience')
 
                 responses.append(resp)
 
@@ -666,7 +668,7 @@ class Session(requests.Session):
             csrf_param = re.search('&(.+)"',self.cookies.get('bcookie')) \
                     .groups()[0]
         except Exception as e:
-            raise Exception('Failed to get CSRF param from initial request ' \
+            raise SessionException('Failed to get CSRF param from initial request ' \
                     'to /login. This suggests the login process has ' \
                     'been changed by LinkedIn')
 
@@ -693,7 +695,7 @@ class Session(requests.Session):
     
         # Determine success
         if resp.status_code != 200 or not resp.request.url.endswith('feed/'):
-            raise Exception('Invalid credentials supplied')
+            raise SessionException('Invalid credentials supplied')
 
         self.authenticated = True
 
@@ -721,12 +723,12 @@ class Session(requests.Session):
         # MAKE THE REQUEST AND PARSE OUT JSON
         # ===================================
 
-        try:
-            #obj = self.get(path,params=params,headers=headers).json()
-            obj = self.get(path,params=params,*args,**kwargs).json()
-        except:
-            raise Exception('Request to get the company id for ' \
-                    f'{company_name} received an invalid response')
+        obj = self.get(path,params=params,*args,**kwargs).json()
+
+        if 'status' in obj and obj['status'] == 404:
+            raise SessionException(
+                f'Failed to get company id for {company_name}'
+            )
 
         # =================================================
         # ITERATE OVER EACH INCLUDED RESPONSE & EXTRACT CID
@@ -742,7 +744,7 @@ class Session(requests.Session):
 
         # Raise an exception when extraction of the CID fails
         if not cid:
-            raise Exception('Company identifier not found by name')
+            raise SessionException('Company identifier not found by name')
 
         return cid
 
@@ -767,6 +769,7 @@ class Session(requests.Session):
 
     @is_authenticated
     def getContactSearchResults(self,company_id,start,
+
             max_facet_values=10,*args,**kwargs):
 
         if self.headers.get('Accept'): del(self.headers['Accept'])

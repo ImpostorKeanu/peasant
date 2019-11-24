@@ -68,3 +68,14 @@ def extractInvitation(jelement):
             occupation=j['occupation'],
             entity_urn=j['entityUrn'].split(':')[-1],
             public_identifier=j['publicIdentifier'])
+
+def extractProfiles(session,offset=10,max_facet_values=10):
+    profiles = []
+    while True:
+        resp = session.getContactSearchResults(cid,offset,mfv)
+        icount,iprofiles = extractInfo(resp.json(),company_name,cid)
+        profiles += iprofiles
+        if offset >= count or offset >= 999: break
+        offset += mfv
+        if offset >= 1000: offset = 999
+    return profiles

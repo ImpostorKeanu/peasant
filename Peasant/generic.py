@@ -1,5 +1,60 @@
 import re
 from string import punctuation as PUNCTUATION
+from Peasant.profile import *
+from Peasant.suffix_printer import *
+import csv
+
+def loadProfiles(args):
+
+    main_profiles = []
+    with open(args.output_file) as infile:
+        rows = [r for r in csv.reader(infile)]
+        if rows.__len__() > 2:
+            columns = rows[0]
+            main_profiles = [
+                Profile.from_row(r,columns) for r in rows[1:]
+            ]
+
+    return main_profiles
+
+def writeProfiles(args,profiles):
+
+    written=[]
+    if args.output_file == stdout:
+        csvfile = stdout
+    else:
+        csvfile = open(args.output_file,'w')
+    
+    writer = csv.writer(csvfile)
+    writer.writerow(Profile.ATTRS)
+    for p in profiles:
+        if p not in written:
+            writer.writerow(p.to_row())
+            written.append(p)
+    csvfile.close()
+
+def addContacts(session, profiles):
+    counter = 0
+    for p in profiles:
+
+        # Skip anyprofile without an entity_urn or that has already
+        # been requested during a previous run
+        if not p.entity_urn or p.connection_requested: continue
+        counter += 1
+        esprint(f'Sending Connection Request {counter}: {p.first_name} ' \
+                f'{p.last_name}, {p.occupation} @ {p.company_name}')
+        resp = session.postConnectionRequest(p.entity_urn)
+        try:
+            status = resp.json()['status']
+            if status == 429:
+                esprint('API request limit hit. Halting execution')
+                break
+            else:
+                p.connection_requested = True
+        except:
+            pass
+
+    return profiles
 
 def filterDict(dct,blacklist=[]):
     '''Filter a dictionary based on key values.
