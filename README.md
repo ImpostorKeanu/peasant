@@ -39,19 +39,21 @@ python3 -m pip install -r requirements.txt
 
 By supplying one or more company names to the `harvest` command,
 Peasant will make API calls to acquire the numeric identifier of
-the company and proceed to enumerate employees from the people
-section of the target company.
+a target company identifier and proceed to enumerate employees
+from the people section of the target company.
 
 ### Example
 
-If the target is Dunder Mifflin Design and the company name was found
-to be `dundermifflindesign` via search engine, then the following command
-would attempt to harvest profiles and write CSV records to dundermifflin.csv:
+If the target is Dunder Mifflin Design and the company name was
+found to be `dundermifflindesign` via search engine, then the
+following command would attempt to harvest profiles and write CSV
+records to dundermifflin.csv:
 
-_WARNING_: Use of the `-ac` flag will result in a connection request being
-sent to each accessible profile. If you wish to filter for particlar profiles,
-use the `-of` flag to dump the results to disk and select specific records
-via grep and use the `add_contacts` subcommand to create connection requests.
+_WARNING_: Use of the `-ac` flag will result in a connection request
+being sent to each accessible profile. If you wish to filter for
+particlar profiles, use the `-of` flag to dump the results to disk
+and select specific records via grep and use the `add_contacts`
+subcommand to create connection requests.
 
 ```
 archangel@deskjet~~> export creds='username_here:password_here' # or interactive authentication 
@@ -78,10 +80,11 @@ archangel@deskjet~~> ./peasant.py harvest -C "$creds" -cns dundermifflindesign -
 
 ### Limitations
 
-LinkedIn will allow only the first 1,000 search results to be returned
-when harvesting contact information, however the same results are not
-returned each time a series of searches are applied. Run the harvest
-command multiple times to capture more contacts.
+LinkedIn will allow only the first 1,000 search results to be
+returned when harvesting contact information, however the same
+results are not returned each time a series of searches are
+applied. Run the harvest command multiple times to capture more
+contacts.
 
 Here are two ways to increase the number of contacts a given profile
 can access:
