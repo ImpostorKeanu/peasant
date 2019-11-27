@@ -1,4 +1,7 @@
 from Peasant.parsers import *
+from Peasant.extractors import *
+from Peasant.picture import *
+import pdb
 
 class BasicProfile:
     '''A simple data structure representing the profile of
@@ -7,13 +10,14 @@ class BasicProfile:
 
     def __init__(self,firstName,lastName,occupation,objectUrn,
             entityUrn,publicIdentifier,trackingId,
-            premiumSubscriber=False,**kwargs):
+            premiumSubscriber=False,picture=None,
+            backgroundImage=None,**kwargs):
 
         self.firstName = firstName
         self.lastName = lastName
         self.occupation = occupation
         self.objectUrn = objectUrn
-        self.entityUrn = entityUrn
+        self.entityUrn = entityUrn # THIS URN IDENTIFIES PROFILE IN URIs
         self.publicIdentifier = publicIdentifier
         self.trackingId = trackingId
         self.objectUrnId = parseUrn(self.objectUrn)[1]

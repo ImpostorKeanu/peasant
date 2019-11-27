@@ -1,26 +1,28 @@
 import requests
 import pdb
 from IPython import embed
+from sys import exit
 from Peasant.generic import *
 from Peasant.parsers import *
 from Peasant.suffix_printer import *
 from Peasant.basic_profile import BasicProfile
 from Peasant.exceptions import *
+from Peasant.extractors import *
+from Peasant.picture import *
+from Peasant.image import Image
 from functools import wraps
 from types import MethodType
 from datetime import datetime
+import re
+
+URN_RE = re.compile('urn:li:digitalmediaAsset:.+')
+MEDIA_UPLOAD_DISPLAY_TYPES = ['PROFILE_ORIGINAL_BACKGROUND',
+        'PROFILE_DISPLAY_BACKGROUND', 'PROFILE_ORIGINAL_PHOTO',
+        'PROFILE_DISPLAY_PHOTO']
 
 NOW = datetime.now()
 CYR = CURRENT_YEAR  = NOW.year
 CMO = CURRENT_MONTH = NOW.month
-
-def checkEntityUrn(inc,start):
-
-    if 'entityUrn' in inc and \
-            inc['entityUrn'].startswith(start):
-        return True
-    else:
-        return False
 
 # WARNING: Method decorator
 def is_authenticated(method):
@@ -258,7 +260,7 @@ class Session(requests.Session):
         `publicIdentifier`, `trackingId`, and `entityUrn`.
         '''
 
-        obj = getCurrentProfile(*args,**kwargs)['included'][0]
+        obj = self.getCurrentProfile(*args,**kwargs)['included'][0]
 
         return id_dict(obj['trackingId'],
                 obj['publicIdentifier'],
@@ -372,33 +374,19 @@ class Session(requests.Session):
         return True
 
     @is_authenticated
-    def spoofProfile(self,public_identifier):
-        '''Silently spoof the entirety of a target profile.
-        
-        - public_identifier - `str` - public profile identifier
-        '''
-
-        raw_profile = rp = self.getProfile(public_identifier,basic=True) \
-                ['elements'][0]
-
-        obj = {k:v for k,v in rp.items() if k.startswith('multiLocale')}
-
-        self.postBasicProfileUpdate(obj)
-        self.deleteEducation()
-        self.spoofEducation(public_identifier)
-        self.deleteExperience()
-        self.spoofExperience(public_identifier)
-
-        return True
-
-    @is_authenticated
     def spoofBasicInfo(self,public_identifier):
         '''Spoof basic profile information from profile identified
         via the public_identifier.
         '''
 
-        raw_profile = rp = self.getProfile(public_identifier,basic=True) \
-                ['elements'][0]
+        try:
+            raw_profile = rp = self.getProfile(public_identifier,basic=True) \
+                    ['elements'][0]
+        except Exception as e:
+            esprint('Failed to get profile by public_identifier! Check the ' \
+                'identifier and try again.',suf='[!]')
+            raise(e)
+
         obj = {k:v for k,v in rp.items() if k.startswith('multiLocale')}
         resp = self.postBasicProfileUpdate(obj)
 
@@ -486,7 +474,7 @@ class Session(requests.Session):
 
         # Iterate over each included, tracking each response
         # object
-        responses = []
+        responses, posted = [], {}
         for inc in rp['included']:
 
             # Assure all indicators are in the target object
@@ -507,6 +495,25 @@ class Session(requests.Session):
                     continue
 
                 if 'entityUrn' in inc: del(inc['entityUrn'])
+
+                filtered = filterDict(inc,key_blacklist)
+
+                # =====================================
+                # PREVENT DUPLICATE POSTS OF EXPERIENCE
+                # =====================================
+
+                if 'companyUrn' in inc and inc['companyUrn'] in posted:
+
+                    if 'dateRange' in inc and inc['dateRange'] in posted[inc['companyUrn']]:
+                                continue
+                    else:
+
+                        posted[inc['companyUrn']].append(inc['dateRange'])
+                else:
+
+                    if 'companyUrn' in inc and 'dateRange' in inc:
+
+                        posted[inc['companyUrn']] = [inc['dateRange']]
         
                 # TODO: Invalid date ranges break things
                 # omitting for the time being. Additional
@@ -514,9 +521,7 @@ class Session(requests.Session):
                 try:
 
                     responses.append(
-                        method(
-                            filterDict(inc,key_blacklist)
-                        )
+                        method(filtered)
                     )
 
                 except AssertionError:
@@ -534,9 +539,7 @@ class Session(requests.Session):
                                 inc['dateRange']['end']['month'] = CMO-1
                     
                         responses.append(
-                            method(
-                                filterDict(inc,key_blacklist)
-                             )
+                            method(filtered)
                         )
 
                     else:
@@ -807,6 +810,241 @@ class Session(requests.Session):
         return self.get(path,*args,**kwargs)
 
     @is_authenticated
+    def getProfileImages(self,public_identifier):
+
+        path = f'/voyager/api/identity/profiles/{public_identifier}'
+        
+        try:
+            obj = self.get(path).json()
+        except:
+            return SessionException(
+                'Failed to extract profile images'
+            )
+
+        if not 'included' in obj:
+            return None
+
+        for inc in obj['included']:
+            if 'firstName' in inc and 'lastName' in inc:
+                break
+
+        profile_pictures = []
+        if 'picture' in inc and inc['picture'] and 'artifacts' in \
+                inc['picture']:
+
+            profile_pictures = extractImages(
+                inc['picture']['rootUrl'],
+                inc['picture']['artifacts'],
+                self
+            )
+
+        background_images = []
+        if 'backgroundImage' in inc and inc['backgroundImage'] and \
+                'artifacts' in inc['backgroundImage']:
+
+                background_images = extractImages(
+                    inc['backgroundImage']['rootUrl'],
+                    inc['backgroundImage']['artifacts'],
+                    self
+                )
+
+        return profile_pictures,background_images
+
+
+    @is_authenticated
+    def spoofPictures(self,public_identifier,
+            profile=True,background=True):
+        '''Spoof pictures from a profile identified by
+        `public_identifier`.
+        '''
+
+        profile_pictures, background_pictures = \
+                self.getProfileImages(public_identifier)
+
+        if profile and profile_pictures:
+
+            original_url,original_urn = \
+                self.postMediaUploadMetadata(
+                    profile_pictures.largest,
+                    'PROFILE_ORIGINAL_PHOTO'
+                )
+
+            display_url,display_urn = \
+                self.postMediaUploadMetadata(
+                    profile_pictures.largest,
+                    'PROFILE_DISPLAY_PHOTO'
+                )
+
+            self.putImageUpload(original_url,profile_pictures.largest)
+            self.putImageUpload(display_url,profile_pictures.largest)
+
+            self.postApplyImageChange('profilePicture',original_urn,
+                    display_urn)
+
+        if background and background_pictures:
+            
+            original_url,original_urn = \
+                self.postMediaUploadMetadata(
+                    background_pictures.largest,
+                    'PROFILE_ORIGINAL_BACKGROUND'
+                )
+
+            display_url,display_urn = \
+                self.postMediaUploadMetadata(
+                    background_pictures.largest,
+                    'PROFILE_DISPLAY_BACKGROUND'
+                )
+
+            self.putImageUpload(original_url,background_pictures.largest)
+            self.putImageUpload(display_url,background_pictures.largest)
+
+            self.postApplyImageChange('backgroundPicture',original_urn,
+                    display_urn)
+
+    @is_authenticated
+    def postMediaUploadMetadata(self,image,media_upload_type):
+        '''Get a single use upload URL and URN for an image
+        that will be uploaded.
+        '''
+
+        assert media_upload_type in MEDIA_UPLOAD_DISPLAY_TYPES,(
+            'media_upload_type argument must be one of the following: '+\
+            ' ,'.join(MEDIA_UPLOAD_DISPLAY_TYPES)
+        )
+            
+        path = '/voyager/api/voyagerMediaUploadMetadata'
+        params = {'action':'upload'}
+
+        # ==================================
+        # MAKE THE REQUEST FOR THE URLS/URNs
+        # ==================================
+
+        try:
+
+            resp = self.post(path,
+                    params=params,
+                    json={'mediaUploadType':media_upload_type,
+                        'filesize':image.size}
+                    )
+
+        except Exception as e:
+
+            esprint('Failed to make request for image upload URLs')
+            raise(e)
+
+        if resp.status_code != 200:
+            raise SessionException(
+                'Failed to obtain image upload URLs'
+            )
+
+        # ==================
+        # PARSE THE RESPONSE
+        # ==================
+
+        obj = resp.json()
+
+        # Get the upload URL and digitalmediaAssetURN
+        try:
+            singleUploadUrl = obj['data']['value']['singleUploadUrl']
+            digitalmediaAssetUrn = obj['data']['value']['urn']
+        except Exception as e:
+            esprint('Failed to parse URL and URN for images',suf='[!]')
+            raise e
+
+        return singleUploadUrl,digitalmediaAssetUrn
+
+    @is_authenticated
+    def putImageUpload(self,url,image,media_type_family='STILLIMAGE'):
+        '''Upload an image using a URL obtained via
+        `session.postMediaUploadMetadata`.
+        '''
+
+        assert image.__class__ == Image,(
+            'image argument must be of type Image'
+        )
+
+        # ===========================
+        # UPDATE HEADERS AND PUT DATA
+        # ===========================
+
+        self.headers.update({'media-type-family':media_type_family})
+        resp = self.put(url,data=image.read())
+        image.seek(0)
+        del(self.headers['media-type-family'])
+
+        if resp.status_code != 201:
+            raise SessionException(
+                'Failed to upload image'
+            )
+
+        return resp
+
+
+    @is_authenticated
+    @versionize
+    def postApplyImageChange(self,image_type,original_image_urn,
+            display_image_urn,params):
+
+        # ==================================================
+        # ASSERT IMAGE URN FORMATS TO AVOID FUTURE CONFUSION
+        # ==================================================
+
+        assert image_type in ['profilePicture','backgroundPicture'],(
+            'image_type argument must be profilePicture or ' \
+            'backgroundPicture'
+        )
+
+        assert re.match(URN_RE,display_image_urn),(
+            'image_urn argument should be in this format: ' \
+            'urn:li:digitalmedia Asset:XXXXXXXXXXXXXXXXX')
+        
+        assert re.match(URN_RE,original_image_urn),(
+            'original_image_urn argument should be in this format: ' \
+            'urn:li:digitalmedia Asset:XXXXXXXXXXXXXXXXX')
+
+        # ======================================
+        # CONSTRUCT URL WITH CURRENT PROFILE URN
+        # ======================================
+
+        basic_profile = bp = self.getBasicProfile()
+        path = '/voyager/api/identity/normProfiles/' \
+               f'{bp.entityUrnId}'
+
+        data = {
+                'patch': {
+                    image_type: {
+                        '$set': {
+                            'originalImage': original_image_urn,
+                            'displayImage': display_image_urn
+                            }
+                        }
+                    }
+                }
+
+        # ========================================
+        # MAKE THE REQUEST AND RETURN THE RESPONSE
+        # ========================================
+
+        try:
+
+            resp = self.post(path,json=data,params=params)
+
+        except Exception as e:
+
+            esprint('Failed to post image application configuration',
+                    suf='[!]')
+            raise(e)
+
+        if resp.status_code != 202:
+            raise SessionException(
+                'Failed to apply profile picture configuration'
+            )
+
+        return resp
+
+
+    # TODO: Finish this...potential source of information
+    @is_authenticated
     def getProfileContactInfo(self,urn):
         '''Get profile contact information, including
 
@@ -846,45 +1084,6 @@ class Session(requests.Session):
             return self.get(path).json()['data']
         except:
             raise AssertionError('Failed to get contact information')
-
-    def postGeneralAccountUpdates(self,version_tag,tracking_id):
-
-        path = '/voyager/api/identity/normProfiles/ACoAAC5X7EIBxyBuXK6eyHq6B4aK_2J8AP4XZcQ'
-        params = {'versionTag':459105362}
-
-        '''
-
-        # Success Status: 202 Accepted
-
-
-	# POST Body
-
-            {
-                "patch": {
-                    "$set": {
-                        "firstName": "First",
-                        "lastName": "Name",
-                        "headline": "Some Headline"
-                    },
-                    "location": {
-                        "$set": {
-                            "preferredGeoPlace": "urn:li:fs_city:(us,3-1-0-16-2)"
-                        }
-                    },
-                    "miniProfile": {
-                        "$set": {
-                            "presence": {
-                                "lastActiveAt": 1574158504000,
-                                "availability": "ONLINE",
-                                "instantlyReachable": false,
-                                "$type": "com.linkedin.voyager.messaging.presence.MessagingPresenceStatus",
-                                "lastFetchTime": 1574158504445
-                            }
-                        }
-                    }
-                }
-            }
-        '''
 
     def login(self,args):
         '''Accepts args object and perform authentication relative to

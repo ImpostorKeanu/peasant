@@ -1,4 +1,43 @@
 from Peasant.profile import Profile
+from Peasant.picture import Picture
+from Peasant.image import Image
+from re import sub
+import pdb
+
+def extractImages(root_url,artifacts,session):
+    '''Extract picture linke from a JSON object.
+    '''
+
+    # TODO: The following logic recklessly assumes
+    # that the picture JSON object will include an
+    # array of objects that are _ordered by size_
+    # from smallest to largest. Review this logic
+    # and develop a way to detect the size based on
+    # width and height.
+
+    picture,size = {},'small'
+    for artifact in artifacts:
+
+        # Construct the URI for the target image
+        url = \
+                root_url + \
+                artifact['fileIdentifyingUrlPathSegment']
+
+        # Initialize an Image object and load the
+        # binary content
+        picture[size] = Image(size,url)
+        picture[size].load(session)
+
+        # Break if we've met extra large size
+        if size == 'xlarge': break
+
+        # Get the next size
+        size = {'small':'medium',
+                'medium':'large',
+                'large':'xlarge'}[size]
+
+    # initialize and return a picture object
+    return Picture(**picture)
 
 def extractInfo(j,company_name,company_id):
     '''Extract information from the JSON object returned after

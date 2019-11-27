@@ -4,6 +4,14 @@ from Peasant.profile import *
 from Peasant.suffix_printer import *
 import csv
 
+def checkEntityUrn(inc,start):
+
+    if 'entityUrn' in inc and \
+            inc['entityUrn'].startswith(start):
+        return True
+    else:
+        return False
+
 def loadProfiles(args):
 
     main_profiles = []

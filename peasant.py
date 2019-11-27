@@ -110,8 +110,13 @@ try:
         session.deleteExperience()
         session.spoofExperience(args.public_identifier)
 
+        esprint('Spoofing profile images...')
+        session.spoofPictures(args.public_identifier)
+
+        esprint('Spoofing complete!')
+
 finally:
 
     esprint('Logging out')
-    #session.getLogout()
+    session.getLogout()
     esprint('Done...exiting')
