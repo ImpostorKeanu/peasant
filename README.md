@@ -1,5 +1,9 @@
 # Peasant
 
+**Brought to you by:**
+
+![Black Hills Information Security](https://www.blackhillsinfosec.com/wp-content/uploads/2016/03/BHIS-logo-L-300x300.png "Black Hills Information Security")
+
 Peasant is a LinkedIn reconnaissance utility written in Python3
 that functions much like 
 [LinkedInt](https://github.com/vysecurity/LinkedInt) by 
