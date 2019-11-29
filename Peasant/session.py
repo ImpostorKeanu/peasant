@@ -685,7 +685,9 @@ class Session(requests.Session):
         return responses
 
     def postLogin(self,username,password,*args,**kwargs):
+        self.removeAcceptHeader()
         self.get('/login')
+        self.addAcceptHeader()
         try:
             # TODO: Reckless parsing of csrf_param value here
             csrf_param = re.search('&(.+)"',self.cookies.get('bcookie')) \
