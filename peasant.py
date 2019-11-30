@@ -6,18 +6,17 @@ import warnings
 import csv
 from sys import stdout, exit
 from pathlib import Path
-from Peasant.validators import *
 from Peasant.parsers import *
 from Peasant.generators import *
 from Peasant.extractors import *
-from Peasant.auth import *
+from Peasant.session import Session
 from Peasant.args import parser as arg_parser
 from Peasant.suffix_printer import *
 from Peasant.banner import banner
 from Peasant.generic import *
 from Peasant.exceptions import *
+from Peasant.constants import *
 from Peasant.harvest import harvest_contacts
-import pdb
 
 warnings.filterwarnings('ignore')
 
@@ -47,7 +46,7 @@ if 'output_file' in args.__dict__:
 
     if args.output_file != stdout and Path(args.output_file).exists():
         esprint(f'Loading CSV file: {args.output_file}')
-        main_profiles = loadProfiles(args)
+        main_profiles = loadProfiles(args.output_file)
         esprint(f'Total profiles loaded: {main_profiles.__len__()}')
     else:
         if args.output_file != stdout:
@@ -81,7 +80,7 @@ try:
     # ===============
     
     # Harvest contacts
-    if args.cmd == 'harvest':
+    if args.cmd == 'harvest_contacts':
     
         harvest_contacts(args,session,main_profiles)
     
@@ -92,10 +91,10 @@ try:
                 'some time...')
         main_profiles = addContacts(session,main_profiles,args.message)
         esprint(f'Writing profiles to file: {args.output_file}')
-        writeProfiles(args,main_profiles)
+        writeProfiles(args.output_file,main_profiles)
     
     # Profile spoofing
-    elif args.cmd == 'spoof_profile':
+    elif args.cmd == 'spoof_contact':
        
         esprint('Spoofing basic profile information...')
         session.spoofBasicInfo(args.public_identifier)
