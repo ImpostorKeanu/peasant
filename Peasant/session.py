@@ -1,7 +1,6 @@
 import requests
-import pdb
-from IPython import embed
-from sys import exit
+import re
+from types import MethodType
 from Peasant.generic import *
 from Peasant.parsers import *
 from Peasant.suffix_printer import *
@@ -10,71 +9,9 @@ from Peasant.exceptions import *
 from Peasant.extractors import *
 from Peasant.picture import *
 from Peasant.image import Image
-from functools import wraps
-from types import MethodType
-from datetime import datetime
-import re
-
-URN_RE = re.compile('urn:li:digitalmediaAsset:.+')
-MEDIA_UPLOAD_DISPLAY_TYPES = ['PROFILE_ORIGINAL_BACKGROUND',
-        'PROFILE_DISPLAY_BACKGROUND', 'PROFILE_ORIGINAL_PHOTO',
-        'PROFILE_DISPLAY_PHOTO']
-
-NOW = datetime.now()
-CYR = CURRENT_YEAR  = NOW.year
-CMO = CURRENT_MONTH = NOW.month
-
-# WARNING: Method decorator
-def is_authenticated(method):
-    '''Assure that the `Session` object is authenticated
-    before executing a given method.
-    '''
-
-    @wraps(method)
-    def inner(session, *args, **kwargs):
-
-        # Throw an assertion error should the session not yet be
-        # authenticated
-        assert session.authenticated, ('The session object must be ' \
-            f'authenticated prior calling session.{method.__name__}')
-
-        # Execute the method and return the output
-        return method(session, *args, **kwargs)
-
-    return inner
-
-# WARNING: Method decorator
-def versionize(method):
-    '''Inject a `x-li-page-instance` header into the
-    request, as required by LinkedIn when particular
-    changes are being applied to the profile.
-    '''
-
-    @wraps(method)
-    def inner(session,*args,**kwargs):
-
-        # Update headers with x-li-page-instance header
-        session.headers.update(
-                {'x-li-page-instance':'urn:li:page:d_fl' \
-                'agship3_profile_self_edit_top_card;' + \
-                session.getTrackingId()}
-            )
-
-        # Add versionTag to query parameters
-        if 'params' in kwargs:
-            kwargs['params']['versionTag'] = self.getVersionTag()
-        else:
-            kwargs['params'] = {'versionTag':session.getVersionTag()}
-
-        # Execute the method
-        ret = method(session, *args, **kwargs)
-
-        # Delete the x-li-page-instance header
-        del(session.headers['x-li-page-instance'])
-
-        return ret
-
-    return inner
+from Peasant.constants import *
+from Peasant.decorators import *
+import pdb
 
 class Session(requests.Session):
     '''Custom session object to ease the process of passing
@@ -100,7 +37,7 @@ class Session(requests.Session):
         # Pre-configure necessary API headers
         self.headers.update(
             {
-                'Accept':'application/vnd.linkedin.normalized+json+2.1',
+                'Accept':ACCEPT_VND_NORMALIZED_JSON_21,
                 'x-restli-protocol-version':'2.0.0',
                 'x-li-lang':'en_US',
                 'x-li-track':'{"clientVersion":"1.5.*","osName":' \
@@ -685,7 +622,9 @@ class Session(requests.Session):
         return responses
 
     def postLogin(self,username,password,*args,**kwargs):
+        self.removeAcceptHeader()
         self.get('/login')
+        self.addAcceptHeader()
         try:
             # TODO: Reckless parsing of csrf_param value here
             csrf_param = re.search('&(.+)"',self.cookies.get('bcookie')) \
@@ -1102,5 +1041,4 @@ class Session(requests.Session):
 
             esprint('Credentials not provided. Enter credentials to ' \
                     'continue')
-            username,password = self.userPassAuth(getCredentials())
-            return self.userPassAuth(username,password)
+            return self.userPassAuth(*getCredentials())
