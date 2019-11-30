@@ -1,6 +1,5 @@
 from http.cookies import SimpleCookie
 import re
-import pdb
 
 def parseUrn(s):
     '''Parse the URN value from a string.

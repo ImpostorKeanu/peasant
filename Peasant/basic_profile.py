@@ -1,7 +1,6 @@
 from Peasant.parsers import *
 from Peasant.extractors import *
 from Peasant.picture import *
-import pdb
 
 class BasicProfile:
     '''A simple data structure representing the profile of

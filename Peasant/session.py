@@ -35,6 +35,17 @@ class Session(requests.Session):
         self.authenticated=False
         
         # Pre-configure necessary API headers
+        self.addAPIHeaders()
+
+    def removeAPIHeaders(self):
+
+        for k in ['Accept','x-restli-protocol-version','x-li-lang',
+            'x-li-track']:
+
+            del(self.headers[k])
+
+    def addAPIHeaders(self):
+
         self.headers.update(
             {
                 'Accept':ACCEPT_VND_NORMALIZED_JSON_21,
@@ -45,6 +56,7 @@ class Session(requests.Session):
                     '"DESKTOP","mpName":"voyager-web"}'
             }
         )
+
 
     def proxyRequest(self, method, path, *args, **kwargs):
         '''Proxy a request to `requests.Session` while passing
@@ -622,9 +634,8 @@ class Session(requests.Session):
         return responses
 
     def postLogin(self,username,password,*args,**kwargs):
-        self.removeAcceptHeader()
+        self.removeAPIHeaders()
         self.get('/login')
-        self.addAcceptHeader()
         try:
             # TODO: Reckless parsing of csrf_param value here
             csrf_param = re.search('&(.+)"',self.cookies.get('bcookie')) \
@@ -660,6 +671,7 @@ class Session(requests.Session):
             raise SessionException('Invalid credentials supplied')
 
         self.authenticated = True
+        self.addAPIHeaders()
 
         return True
 

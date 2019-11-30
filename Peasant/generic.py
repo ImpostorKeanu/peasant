@@ -2,9 +2,15 @@ import re
 from string import punctuation as PUNCTUATION
 from Peasant.profile import *
 from Peasant.suffix_printer import *
+from getpass import getpass
 import csv
 
 def checkEntityUrn(inc,start):
+    '''Check if the entityURN member of a JSON object (`inc`)
+    starts with with `start`.
+
+    - Returns `True` when a match occurs, otherwise `False`
+    '''
 
     if 'entityUrn' in inc and \
             inc['entityUrn'].startswith(start):
@@ -12,10 +18,12 @@ def checkEntityUrn(inc,start):
     else:
         return False
 
-def loadProfiles(args):
+def loadProfiles(output_file):
+    '''Load profiles from disk into memory.
+    '''
 
     main_profiles = []
-    with open(args.output_file) as infile:
+    with open(output_file) as infile:
         rows = [r for r in csv.reader(infile)]
         if rows.__len__() > 2:
             columns = rows[0]
@@ -25,13 +33,19 @@ def loadProfiles(args):
 
     return main_profiles
 
-def writeProfiles(args,profiles):
+def writeProfiles(output_file,profiles):
+    '''Write CSV records to the output file.
+
+    - output_file - str, file-like object - stream which output will 
+    be written
+    - profiles - list - list of `Peasant.profile.Profile` objects to write
+    '''
 
     written=[]
-    if args.output_file == stdout:
+    if output_file == stdout:
         csvfile = stdout
     else:
-        csvfile = open(args.output_file,'w')
+        csvfile = open(output_file,'w')
     
     writer = csv.writer(csvfile)
     writer.writerow(Profile.ATTRS)
@@ -42,6 +56,15 @@ def writeProfiles(args,profiles):
     csvfile.close()
 
 def addContacts(session,profiles,message=None):
+    '''Use the session object to send connection requests for the
+    target profiles.
+
+    - session - `Peasant.session.Session` - Session object used to send
+    the requests
+    - profiles - list - `list` of `Session.profile.Profile` objects that
+    will receive connection requests
+    '''
+
     counter = 0
     for p in profiles:
 
@@ -51,9 +74,16 @@ def addContacts(session,profiles,message=None):
         counter += 1
         esprint(f'Sending Connection Request {counter}: {p.first_name} ' \
                 f'{p.last_name}, {p.occupation} @ {p.company_name}')
-        resp = session.postConnectionRequest(
-                urn=p.entity_urn,
-                message=message)
+
+        # Send the connection request
+        try:
+            resp = session.postConnectionRequest(
+                    urn=p.entity_urn,
+                    message=message)
+        except Exception as e:
+            esprint('Failed to send connection request!',suf='[!]')
+            raise e
+
         if resp.status_code == 201:
             p.connection_requested = True
         else:
@@ -64,8 +94,9 @@ def addContacts(session,profiles,message=None):
                     break
                 else:
                     p.connection_requested = True
-            except:
-                pass
+            except Exception as e:
+                esprint('Connection request failed!',suf='[!]')
+                raise e
 
     return profiles
 
@@ -75,6 +106,11 @@ def filterDict(dct,blacklist=[]):
     This is useful in situations where we need to adapt the output
     from an API to match the input of a distinct API call when
     spoofing profiles.
+
+    - dct - `dict` - Dictionary object to filter
+    - blacklist - `list` - List of strings which all keys will be
+    compared. Matched strings will result in the paired dictionary
+    being removed
     '''
 
     for key in list(dct.keys()):
@@ -90,6 +126,12 @@ def filterDict(dct,blacklist=[]):
 
 
 def getInput(prompt,password=False):
+    '''Get input from the user.
+
+    - prompt - str - Textual prompt that is displayed to user
+    - password - bool - Determine if input should be treated as
+    a password, resulting in keystrokes being masked
+    '''
 
     i = None
     while not i:
@@ -101,6 +143,12 @@ def getInput(prompt,password=False):
     return i
 
 def handleProxies(proxies=[]):
+    '''Parse each proxy into a dictionary where the key is the protocol
+    and the value is the URL to the proxy.
+
+    - proxies - `list` of URLs - A list of URLs to parse as proxies in the
+    following format: `https://www.somehost.com:8080`
+    '''
 
     new_proxies = {}
     if proxies:
@@ -114,48 +162,10 @@ def handleProxies(proxies=[]):
     return new_proxies
 
 def getCredentials():
+    '''Prompt the user to enter credentials interactively.
+    '''
     
     username = getInput('Username: ')
     password = getInput('Password: ',True)
 
     return username,password
-
-def handleCredentials(args,session):
-
-    # Use statically assigned cookies
-    if args.cookies:
-    
-        session.cookies = requests.utils.add_dict_to_cookiejar(
-            session.cookies,parseCookiesString(args.cookies)
-        )
-    
-    # Get cookies by authentication
-    else:
-    
-        # Handle credentials argument
-        if args.credentials:
-    
-            # Split the creds on colon
-            creds = args.credentials.split(':')
-    
-            # Assure that a username and password is provided
-            if creds.__len__() < 2:
-                raise Exception('Credentials argument requires a colon ' \
-                    f'delimited value, not {args.credentials}')
-    
-            username = creds[0]
-    
-            # Join on colon to assure that colons within the password
-            # are captured.
-            password = ':'.join(creds[1:])
-    
-        # Get credentials interactively
-        else:
-    
-            esprint('Credentials not provided. Enter credentials to ' \
-                    'continue')
-            username,password = getCredentials()
-
-        session.credentialAuth
-
-    return True

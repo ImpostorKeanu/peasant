@@ -1,11 +1,14 @@
 from io import BytesIO
 import requests
-import pdb
 
 class ImageException(Exception):
     pass
 
 class Image(BytesIO):
+    '''A `BytesIO` like object representing an image use to avoid
+    having to write files to disk while spoofing images froma foreign
+    LinkedIn profile.
+    '''
 
     def __init__(self,size,url):
         

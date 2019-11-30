@@ -11,6 +11,8 @@ class Picture:
     def __init__(self,small=None,medium=None,
             large=None,xlarge=None):
 
+        # Assert that only Image objects are valid inputs
+        # to the initializer
         for size in Picture.SIZES:
             assert locals()[size].__class__ == Image or \
                     locals()[size] == None,(
@@ -24,6 +26,8 @@ class Picture:
 
     @property
     def largest(self):
+        '''Return the image of the largest size.
+        '''
 
         for s in Picture.RSIZES:
             i = self.__getattribute__(s)

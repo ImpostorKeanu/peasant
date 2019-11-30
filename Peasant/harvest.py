@@ -2,7 +2,6 @@ from Peasant.exceptions import *
 from Peasant.suffix_printer import *
 from Peasant.extractors import *
 from Peasant.generic import *
-import pdb
 
 def harvest_contacts(args,session,main_profiles=[]):
 
@@ -30,6 +29,7 @@ def harvest_contacts(args,session,main_profiles=[]):
         
         # Get the initial set of profiles to determine the total available
         # number.
+        # TODO: Adjust offsets to make this more efficient
         esprint('Getting initial profiles')
         resp = session.getContactSearchResults(cid,0,10)
         
@@ -77,5 +77,5 @@ def harvest_contacts(args,session,main_profiles=[]):
     # ===========
     
     esprint(f'Writing output to {args.output_file}')
-    writeProfiles(args,main_profiles)
+    writeProfiles(args.output_file,main_profiles)
     esprint('Done!')

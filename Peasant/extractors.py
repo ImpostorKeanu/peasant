@@ -1,8 +1,9 @@
 from Peasant.profile import Profile
 from Peasant.picture import Picture
+from Peasant.exceptions import SessionException
 from Peasant.image import Image
+from Peasant.constants import *
 from re import sub
-import pdb
 
 def extractImages(root_url,artifacts,session):
     '''Extract picture linke from a JSON object.
@@ -61,7 +62,9 @@ def extractInfo(j,company_name,company_id):
                 e['hitInfo']:
                     to_parse.append(e)
 
-    return result_count,[extractProfile(e,company_name,company_id) for e in to_parse]
+    return (result_count,
+            [extractProfile(e,company_name,company_id)
+                for e in to_parse])
 
 def extractProfile(jelement,company_name,company_id):
     '''Derive and return Peasant.profile object from an element.
@@ -69,24 +72,30 @@ def extractProfile(jelement,company_name,company_id):
 
     j = jelement
 
-    '''Path to profile information from element:
-    - /hitInfo/com.linkedin.voyager.search.SearchProfile
-    '''
+    # Catch any exceptions related to parsuing of the JSON object
+    try:
 
-    profile = j['hitInfo']['com.linkedin.voyager.search.SearchProfile']
+        profile = j['hitInfo'] \
+                ['com.linkedin.voyager.search.SearchProfile']
+        
+        # get industry/location information
+        industry = profile.get('industry')
+        location = profile.get('location')
+    
+        # get profile information
+    
+        mini_profile = profile['miniProfile']
+        first_name = mini_profile['firstName']
+        last_name = mini_profile['lastName']
+        occupation = mini_profile['occupation']
+        public_identifier = mini_profile['publicIdentifier']
+        entity_urn = mini_profile['entityUrn']
 
-    # get industry/location information
-    industry = profile.get('industry')
-    location = profile.get('location')
+    except Exception as e:
 
-    # get profile information
+        esprint('Failed to parse profile from JSON!',suf='[!]')
+        raise e
 
-    mini_profile = profile['miniProfile']
-    first_name = mini_profile['firstName']
-    last_name = mini_profile['lastName']
-    occupation = mini_profile['occupation']
-    public_identifier = mini_profile['publicIdentifier']
-    entity_urn = mini_profile['entityUrn']
     if entity_urn:
         try:
             entity_urn = entity_urn.split(':')[-1]
@@ -94,38 +103,72 @@ def extractProfile(jelement,company_name,company_id):
             entity_urn = None
 
     # return a Peasant.profile object
-    return Profile(first_name,last_name,occupation,
-            public_identifier,industry,location,entity_urn,company_name,company_id)
+    return Profile(first_name, last_name, occupation, public_identifier,
+            industry, location, entity_urn, company_name, company_id)
 
-def extractInvitation(jelement):
+def extractInvitation(obj):
     '''Derive and return a Peasant.profile object from a JSON object
     ("toMember).
     '''
 
-    j = jelement
-    return Profile(first_name=j['firstName'],last_name=j['lastName'],
-            occupation=j['occupation'],
-            entity_urn=j['entityUrn'].split(':')[-1],
-            public_identifier=j['publicIdentifier'])
+    return Profile(first_name=obj['firstName'],
+            last_name=obj['lastName'],
+            occupation=obj['occupation'],
+            entity_urn=obj['entityUrn'].split(':')[-1],
+            public_identifier=obj['publicIdentifier'])
 
 def extractProfiles(session,company_name,company_id,offset=10,
         max_facet_values=10):
 
+    # NOTE: This logic will return any extracted profiles
+    # if an error should arise. In theory, this'll avoid
+    # situations where contacts are lost due to exception
+
     profiles = []
     while True:
 
-        resp = session.getContactSearchResults(company_id,
-                offset,max_facet_values)
+        # =========================================
+        # MAKE SEARCH REQUEST AND HANDLE EXCEPTIONS
+        # =========================================
 
-        icount,iprofiles = extractInfo(resp.json(),
+        try:
+
+            resp = session.getContactSearchResults(company_id,
+                    offset,max_facet_values)
+
+            if resp.status_code != 200 or 'Content-Type' not in \
+                    resp.headers or resp.headers['Content-Type'] != \
+                    CONTENT_TYPE_APPLICATION_JSON:
+                raise SessionException('Invalid API response received')
+
+        except Exception as e:
+
+            esprint('Failed to get search results',suf='[!]')
+            print('Exception Message:',e)
+            return profiles
+
+        # ================================================
+        # EXTRACT SEARCH INFORMATION AND HANDLE EXCEPTIONS
+        # ================================================
+
+        try:
+
+            icount,iprofiles = extractInfo(resp.json(),
                 company_name,company_id)
 
+        except Exception as e:
+
+            esprint('Failed to extract search results',suf='[!]')
+            print('Exception Message:',e)
+            raise profiles
+
+        # =====================================
+        # INCREMENT COUNTERS FOR NEXT ITERATION
+        # =====================================
+
         profiles += iprofiles
-
         if offset >= icount or offset >= 999: break
-
         offset += max_facet_values
-
         if offset >= 1000: offset = 999
 
     return profiles
