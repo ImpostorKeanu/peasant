@@ -116,6 +116,8 @@ try:
 
 finally:
 
-    esprint('Logging out')
-    session.getLogout()
-    esprint('Done...exiting')
+    if not args.disable_logout:
+
+        esprint('Logging out')
+        session.getLogout()
+        esprint('Done...exiting')

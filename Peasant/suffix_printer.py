@@ -20,5 +20,10 @@ def error_suffix_print(s, suf=DEF, sep='', end='\n'):
 
     suffix_print(s, suf=suf, sep=sep, file=stderr, end=end)
 
+def warning_suffix_print(s, suf=WAR, sep='', end='\n'):
+
+    error_suffix_print(s, suf=suf, sep=sep, end=end)
+
 sprint = suffix_print
 esprint = error_suffix_print
+wsprint = warning_suffix_print

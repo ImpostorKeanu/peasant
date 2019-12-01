@@ -2,8 +2,33 @@ import re
 from string import punctuation as PUNCTUATION
 from Peasant.profile import *
 from Peasant.suffix_printer import *
+from Peasant.parsers import *
 from getpass import getpass
+import json
 import csv
+from pathlib import Path
+import pdb
+
+def importCookies(filenames):
+            
+    cookies = {}
+    for filename in filenames:
+
+        with open(filename) as infile:
+
+            for jcookie in json.load(infile):
+
+                assert 'name' in jcookie,(
+                    'Cookie must have a "name" member'
+                )
+
+                assert 'value' in jcookie,(
+                    'Cookie must have a "value" member'
+                )
+
+                cookies[jcookie['name']] = jcookie['value']
+
+    return cookies
 
 def checkEntityUrn(inc,start):
     '''Check if the entityURN member of a JSON object (`inc`)

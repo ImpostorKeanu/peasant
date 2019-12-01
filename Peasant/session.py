@@ -36,28 +36,7 @@ class Session(requests.Session):
         
         # Pre-configure necessary API headers
         self.addAPIHeaders()
-
-    def removeAPIHeaders(self):
-
-        for k in ['Accept','x-restli-protocol-version','x-li-lang',
-            'x-li-track']:
-
-            del(self.headers[k])
-
-    def addAPIHeaders(self):
-
-        self.headers.update(
-            {
-                'Accept':ACCEPT_VND_NORMALIZED_JSON_21,
-                'x-restli-protocol-version':'2.0.0',
-                'x-li-lang':'en_US',
-                'x-li-track':'{"clientVersion":"1.5.*","osName":' \
-                    '"web","timezoneOffset":-5,"deviceFormFactor":'\
-                    '"DESKTOP","mpName":"voyager-web"}'
-            }
-        )
-
-
+    
     def proxyRequest(self, method, path, *args, **kwargs):
         '''Proxy a request to `requests.Session` while passing
         all necessary arguments to assure that headers and other
@@ -80,23 +59,58 @@ class Session(requests.Session):
                 .__getattribute__(requests.Session,method) \
                 (self, self.base_url+path, proxies=self.proxies,
                 verify=self.verify, *args, **kwargs)
+
+    # ==========================================
+    # METHODS SIMPLIFYING HTTP HEADER MANAGEMENT
+    # ==========================================
     
+    def removeAPIHeaders(self):
+        '''Remove API headers for requests until `Session.addAPIHeaders`
+        is called to add them back. This is useful in situations when
+        non-API requests are sent to LinkedIn, such as when posting
+        credentials.
+        '''
+
+        for k in ['Accept','x-restli-protocol-version','x-li-lang',
+            'x-li-track']:
+
+            del(self.headers[k])
+
+    def addAPIHeaders(self):
+        '''Add the API headers back to the `Session` object. Generally
+        called at the end of a method when `Session.removeAPIHeaders`
+        has been called.
+        '''
+
+        self.headers.update(
+            {
+                'Accept':ACCEPT_VND_NORMALIZED_JSON_21,
+                'x-restli-protocol-version':'2.0.0',
+                'x-li-lang':'en_US',
+                'x-li-track':'{"clientVersion":"1.5.*","osName":' \
+                    '"web","timezoneOffset":-5,"deviceFormFactor":'\
+                    '"DESKTOP","mpName":"voyager-web"}'
+            }
+        )
+
     def removeAcceptHeader(self):
-        '''Remove the JSON accept header from the Session object.
+        '''Remove the JSON accept header from the Session object. Useful
+        in situations when basic variations of API responses are desired,
+        which often contain different outputs than that of the 2.1 version.
         '''
 
         if 'Accept' in self.headers:
             del(self.headers['Accept'])
 
-    def addAcceptHeader(self,version='2.1'):
+    def addAcceptHeader(self,value=ACCEPT_VND_NORMALIZED_JSON_21):
         '''Add the JSON accept header back to the Session object.
         '''
 
-        header = 'application/vnd.linkedin' \
-                '.normalized+json'
+        self.headers.update({'Accept':value})
 
-        if version: header += '+'+version
-        self.headers.update({'Accept':header})
+    # ====================
+    # HTTP REQUEST METHODS
+    # ====================
     
     def get(self,*args,**kwargs):
         '''Override the get method to use `Session.proxyRequest`.
@@ -115,6 +129,10 @@ class Session(requests.Session):
         '''
 
         return self.proxyRequest('delete',*args,**kwargs)
+
+    # ======================
+    # AUTHENTICATION METHODS
+    # ======================
 
     def cookieAuth(self,cookies,*args,**kwargs):
         '''Accept a string representing cookies and inject them
@@ -142,34 +160,7 @@ class Session(requests.Session):
         self.authenticated = True
 
         return profile
-
-    def getBasicProfile(self):
-        '''Get basic profile information.
-        '''
-
-        path = '/voyager/api/me'
-
-        # Try to request current profile info. If a status code
-        # other than 200 is received, we know the cookies are
-        # invalid
-        resp = self.get(path)
-        if resp.status_code != 200:
-            raise SessionException(
-                    'Failed to get basic profile. This suggests ' \
-                    'invalid credentials or stale cookies.'
-                )
-
-        js = resp.json()
-        for obj in js['included']:
-            if 'firstName' in obj and 'lastName' in obj:
-                break
-
-        for k in list(obj.keys()):
-            if k.startswith('$'): del(obj[k])
-
-        return BasicProfile(**obj,
-                premiumSubscriber=js['data']['premiumSubscriber'])
-
+    
     def credentialAuth(self,credentials,*args,**kwargs):
         '''Accept colon-delimited credentials and perform
         authentication to LinkedIn using a call to
@@ -186,6 +177,60 @@ class Session(requests.Session):
 
         return self.postLogin(username,password)
 
+    # =====================
+    # LINKEDIN CAPABILITIES
+    # =====================
+
+    def getBasicProfile(self):
+        '''Get basic profile information.
+        '''
+
+        path = '/voyager/api/me'
+
+        # Try to request current profile info. If a status code
+        # other than 200 is received, we know the cookies are
+        # invalid
+
+        try:
+            resp = self.get(path)
+        except Exception as e:
+            wsprint('Failed to request basic profile information')
+            raise e
+
+        checkStatus(resp.status_code,200,
+            'Failed to get basic profile. This suggests ' \
+            'invalid credentials or stale cookies.'
+        )
+
+        # ====================
+        # PARSING THE RESPONSE
+        # ====================
+
+
+        js = resp.json()
+        for obj in js['included']:
+            if 'firstName' in obj and 'lastName' in obj:
+                break
+
+        for k in list(obj.keys()):
+            if k.startswith('$'): del(obj[k])
+
+        # ===============================
+        # CREATING A BASIC PROFILE OBJECT
+        # ===============================
+
+        try:
+
+            return BasicProfile(**obj,
+                    premiumSubscriber=js['data']['premiumSubscriber'])
+
+        except Exception as e:
+
+            wsprint(
+                'Failed to generated BasicProfile from JSON response'
+            )
+            raise e
+
     @is_authenticated
     def getCurrentPublicIdentifier(self,*args,**kwargs):
         '''Get the public identifier for the account
@@ -200,8 +245,14 @@ class Session(requests.Session):
             raise SessionException(
                 'Failed to obtain current profile information'
             )
-        
-        return obj['included'][0]['publicIdentifier']
+
+        try:
+            return obj['included'][0]['publicIdentifier']
+        except Exception as e:
+            wsprint(
+                'Failed to parse public identifier from JSON response'
+            )
+            raise e
 
     @is_authenticated
     def getCurrentProfileIdentifiers(self,*args,**kwargs):
@@ -211,9 +262,18 @@ class Session(requests.Session):
 
         obj = self.getCurrentProfile(*args,**kwargs)['included'][0]
 
-        return id_dict(obj['trackingId'],
-                obj['publicIdentifier'],
-                obj['entityUrn'])
+        try:
+
+            return id_dict(obj['trackingId'],
+                    obj['publicIdentifier'],
+                    obj['entityUrn'])
+
+        except Exception as e:
+
+            wsprint(
+                'Failed to parse profile identifiers from JSON response'
+            )
+            raise e
 
     @is_authenticated
     def getProfile(self,public_identifier,basic=False):
@@ -224,10 +284,18 @@ class Session(requests.Session):
 
         if basic: self.removeAcceptHeader()
 
-        obj = self.get(path+'?q=memberIdentity&memberIdentity='+ \
+        try:
+
+            obj = self.get(path+'?q=memberIdentity&memberIdentity='+ \
                 public_identifier+'&decorationId=com.linkedin.' \
                 'voyager.dash.deco.identity.profile.FullProfileWithEnt' \
                 'ities-35').json()
+
+        except Exception as e:
+
+            wsprint(
+                'Failed to get JSON response from LinkedIn API'
+            )
 
         if basic: self.addAcceptHeader()
 
@@ -240,18 +308,40 @@ class Session(requests.Session):
         '''
 
         ids = self.getCurrentProfileIdentifiers(*args,**kwargs)
-        return self.getProfile(ids.publicIdentifier,*args,**kwargs)
+
+        try:
+            return self.getProfile(ids.publicIdentifier,*args,**kwargs)
+        except Exception as e:
+            wsprint(
+                'Failed to get the profile for current session'
+            )
+            raise e
 
     @is_authenticated
     def getLogout(self,*args,**kwargs):
+        '''Terminate the current session, releasing the session
+        cookies.
+        '''
+
         path = '/uas/logout'
         params = {
                 'session_redirect':'/voyager/loginRedirect.html',
                 'csrfToken':parseCsrf(self.cookies['JSESSIONID'])
             }
 
-        return self.get(path,params=params,allow_redirects=False,
+        try:
+
+            return self.get(path,
+                params=params,
+                allow_redirects=False,
                 *args,**kwargs)
+
+        except Exception as e:
+
+            wsprint(
+                'Logout failed'
+            )
+            raise e
 
     @is_authenticated
     def getCurrentFsdProfileURN(self,*args,**kwargs):
@@ -264,12 +354,11 @@ class Session(requests.Session):
         try:
             return obj['included'][0]['entityUrn'] \
                 .split(':')[-1]
-        except:
-            pass
-
-        raise AssertionError(
-            'Failed to extract current profile entityUrn'
-        )
+        except Exception as e:
+            wsprint(
+                'Failed to obtain the entityUrn for the current profile',
+            )
+            raise(e)
 
     @is_authenticated
     def getVersionTag(self,urn=None,*args,**kwargs):
@@ -287,7 +376,10 @@ class Session(requests.Session):
             return self.get(path,*args,**kwargs) \
                     .json()['data']['versionTag']
         except Exception as e:
-            raise AssertionError('Failed to get versionTag')
+            wsprint(
+                'Failed to get the current version tag for the ' \
+                'current profile.')
+            raise e
 
     @is_authenticated
     def getTrackingId(self,*args,**kwargs):
@@ -295,8 +387,12 @@ class Session(requests.Session):
         profile.
         '''
 
-        return self.getBasicProfile(*args,**kwargs) \
-                .trackingId
+        try:
+            return self.getBasicProfile(*args,**kwargs) \
+                    .trackingId
+        except Exception as e:
+            wsprint('Failed to get the current tracking id for the ' \
+                    'current profile.')
 
     @is_authenticated
     @versionize
@@ -315,7 +411,16 @@ class Session(requests.Session):
 
         data={'patch':{'$set':payload}}
 
-        resp = self.post(path,json=data,params=params)
+        try:
+
+            resp = self.post(path,json=data,params=params)
+
+        except Exception as e:
+
+            wsprint(
+                'Failed to post basic profile update'
+            )
+            raise e
 
         checkStatus(resp.status_code,202,
                 'Profile update failed')
@@ -329,11 +434,11 @@ class Session(requests.Session):
         '''
 
         try:
-            raw_profile = rp = self.getProfile(public_identifier,basic=True) \
-                    ['elements'][0]
+            raw_profile = rp = self.getProfile(public_identifier,
+                    basic=True)['elements'][0]
         except Exception as e:
-            esprint('Failed to get profile by public_identifier! Check the ' \
-                'identifier and try again.',suf='[!]')
+            wsprint('Failed to get profile by public_identifier! Check the ' \
+                'identifier and try again.')
             raise(e)
 
         obj = {k:v for k,v in rp.items() if k.startswith('multiLocale')}
@@ -357,11 +462,21 @@ class Session(requests.Session):
         def additional_checks(inc):
             return checkEntityUrn(inc,'urn:li:fsd_profilePosition')
 
-        return self.spoofLoop(public_identifier,
-                indicators=['companyUrn'],
-                method=self.postNewExperience,
-                key_blacklist=key_blacklist,
-                additional_checks=additional_checks)
+        try:
+
+            return self.spoofLoop(public_identifier,
+                    indicators=['companyUrn'],
+                    method=self.postNewExperience,
+                    key_blacklist=key_blacklist,
+                    additional_checks=additional_checks)
+
+        except Exception as e:
+
+            wsprint(
+                'Failed to loop over spoofed content when ' \
+                'spoofing experience'
+            )
+            raise e
 
     @is_authenticated
     def spoofEducation(self,public_identifier):
@@ -376,12 +491,23 @@ class Session(requests.Session):
 
         def additional_checks(inc):
             return checkEntityUrn(inc,'urn:li:fsd_profileEducation')
+
+        try:
         
-        return self.spoofLoop(public_identifier,
-                indicators=['schoolUrn'],
-                method=self.postNewEducation,
-                key_blacklist=key_blacklist,
-                additional_checks=additional_checks)
+            return self.spoofLoop(public_identifier,
+                    indicators=['schoolUrn'],
+                    method=self.postNewEducation,
+                    key_blacklist=key_blacklist,
+                    additional_checks=additional_checks)
+
+        except Exception as e:
+
+            wsprint(
+                'Failed to loop over spoofed content when spoofing ' \
+                'education'
+            )
+
+            raise e
 
     # TODO: Complete certificate spoofing
     # - neet to complete deletion method
@@ -393,11 +519,21 @@ class Session(requests.Session):
         def additional_checks(inc):
             return checkEntityUrn(inc,'urn:li:fsd_profileCertification')
 
-        return self.spoofLoop(public_identifier,
+        try:
+
+            return self.spoofLoop(public_identifier,
                 indicators=['companyUrn'],
                 method=self.postNewCertification,
                 key_blacklist=key_blacklist,
                 additional_checks=additional_checks)
+
+        except Exception as e:
+
+            wsprint(
+                'Failed to loop over spoofed content when spoofing ' \
+                'certifications'
+            )
+            raise e
 
     def spoofLoop(self,public_identifier,indicators,method,
             key_blacklist=[],additional_checks=None):
@@ -502,7 +638,15 @@ class Session(requests.Session):
     def postNewCertification(self,data,params):
 
         path = '/voyager/api/identity/dash/profileCertifications'
-        resp = self.post(path,json=data,params=params)
+
+        try:
+            resp = self.post(path,json=data,params=params)
+        except Exception as e:
+            wsprint(
+                'Failed to post new certification content to current ' \
+                'profile.'
+            )
+            raise e
 
         checkStatus(resp.status_code,201,
                 'Failed to create new certificateion')
@@ -544,7 +688,15 @@ class Session(requests.Session):
         '''
 
         path = '/voyager/api/identity/dash/profileEducations'
-        resp = self.post(path,json=data,params=params)
+
+        try:
+            resp = self.post(path,json=data,params=params)
+        except Exception as e:
+            wsprint(
+                'Failed to post new education content to current ' \
+                'profile.'
+            )
+            raise e
 
         checkStatus(resp.status_code,201,
                 'Failed to create new education')
@@ -556,7 +708,14 @@ class Session(requests.Session):
     def postNewExperience(self,data,params):
 
         path = '/voyager/api/identity/dash/profilePositions'
-        resp = self.post(path,json=data,params=params)
+
+        try:
+            resp = self.post(path,json=data,params=params)
+        except Exception as e:
+            wsprint(
+                'Failed to post new experience for current profile'
+            )
+            raise e
 
         checkStatus(resp.status_code,201,
                 'Failed to create new experience')
@@ -572,8 +731,18 @@ class Session(requests.Session):
         `x-li-page-instance` HTTP header.
         '''
 
-        return self.__getattribute__(method)(path,params=params,
-                *args,**kwargs)
+        try:
+
+            return self.__getattribute__(method)(path,params=params,
+                    *args,**kwargs)
+
+        except Exception as e:
+
+            wsprint(
+                'Failed to make a versionized request'
+            )
+
+            raise e
 
     @is_authenticated
     def deleteEducation(self):
@@ -596,8 +765,17 @@ class Session(requests.Session):
 
                 p = path+'/'+i['entityUrn']
 
-                resp = self.versionizedRequest(path=p,
+                try:
+
+                    resp = self.versionizedRequest(path=p,
                         method='delete')
+
+                except Exception as e:
+
+                    wsprint(
+                        'Failed to delete education from current profile'
+                    )
+                    raise e
 
                 checkStatus(resp.status_code,204,
                         'Failed to delete education') 
@@ -626,8 +804,17 @@ class Session(requests.Session):
                 resp = self.versionizedRequest(path=p,
                     method='delete')
 
-                checkStatus(resp.status_code,204,
-                        'Failed to delete experience')
+                try:
+
+                    checkStatus(resp.status_code,204,
+                            'Failed to delete experience')
+
+                except Exception as e:
+
+                    wsprint(
+                        'Failed to delete experience from current profile'
+                    )
+                    raise e
 
                 responses.append(resp)
 
@@ -641,9 +828,10 @@ class Session(requests.Session):
             csrf_param = re.search('&(.+)"',self.cookies.get('bcookie')) \
                     .groups()[0]
         except Exception as e:
-            raise SessionException('Failed to get CSRF param from initial request ' \
+            wsprint('Failed to get CSRF param from initial request ' \
                     'to /login. This suggests the login process has ' \
                     'been changed by LinkedIn')
+            raise e
 
         resp = self.post('/checkpoint/lg/login-submit',
                     data={
@@ -663,7 +851,7 @@ class Session(requests.Session):
                 }
             )
         except:
-            esprint('Invalid credentials provided. JSESSIONID not ' \
+            wsprint('Invalid credentials provided. JSESSIONID not ' \
                     'found in response.')
     
         # Determine success
@@ -697,7 +885,14 @@ class Session(requests.Session):
         # MAKE THE REQUEST AND PARSE OUT JSON
         # ===================================
 
-        obj = self.get(path,params=params,*args,**kwargs).json()
+        try:
+
+            obj = self.get(path,params=params,*args,**kwargs).json()
+        except Exception as e:
+            wsprint(
+                'Failed to make request for the company id'
+            )
+            raise e
 
         if 'status' in obj and obj['status'] == 404:
             raise SessionException(
@@ -743,7 +938,16 @@ class Session(requests.Session):
 
         if message: data['message'] = message
 
-        return self.post(path,json=data,*args,**kwargs)
+        try:
+
+            return self.post(path,json=data,*args,**kwargs)
+
+        except Exception as e:
+
+            wsprint(
+                'Failed to post connection request'
+            )
+            raise e
 
     @is_authenticated
     def getContactSearchResults(self,company_id,start,
@@ -758,7 +962,16 @@ class Session(requests.Session):
             '&supportedFacets=List(GEO_REGION,SCHOOL,CURRENT_COMPANY,' \
             'CURRENT_FUNCTION,FIELD_OF_STUDY,SKILL_EXPLICIT,NETWORK)'
 
-        return self.get(path,*args,**kwargs)
+        try:
+
+            return self.get(path,*args,**kwargs)
+
+        except Exception as e:
+
+            wsprint(
+                'Failed to get contact search results'
+            )
+            raise e
 
     @is_authenticated
     def getProfileImages(self,public_identifier):
@@ -767,10 +980,11 @@ class Session(requests.Session):
         
         try:
             obj = self.get(path).json()
-        except:
-            return SessionException(
-                'Failed to extract profile images'
+        except Exception as e:
+            wsprint(
+                'Failed to get profile images'
             )
+            raise e
 
         if not 'included' in obj:
             return None
@@ -918,18 +1132,24 @@ class Session(requests.Session):
         # UPDATE HEADERS AND PUT DATA
         # ===========================
 
-        self.headers.update({'media-type-family':media_type_family})
-        resp = self.put(url,data=image.read())
-        image.seek(0)
-        del(self.headers['media-type-family'])
 
-        if resp.status_code != 201:
-            raise SessionException(
-                'Failed to upload image'
+        try:
+            self.headers.update({'media-type-family':media_type_family})
+            resp = self.put(url,data=image.read())
+        except Exception as e:
+            wsprint(
+                'Failed up put image upload while spoofing images'
             )
+            raise e
+        finally:
+            del(self.headers['media-type-family'])
+        
+        checkStatus(resp.status_code,201,
+            'Failed to upload image')
+
+        image.seek(0)
 
         return resp
-
 
     @is_authenticated
     @versionize
@@ -982,14 +1202,11 @@ class Session(requests.Session):
 
         except Exception as e:
 
-            esprint('Failed to post image application configuration',
-                    suf='[!]')
+            wsprint('Failed to post image application configuration')
             raise(e)
 
-        if resp.status_code != 202:
-            raise SessionException(
-                'Failed to apply profile picture configuration'
-            )
+        checkStatus(resp.status_code,202,
+                'Failed to apply profile picture configuration')
 
         return resp
 
@@ -1033,8 +1250,9 @@ class Session(requests.Session):
 
         try:
             return self.get(path).json()['data']
-        except:
-            raise AssertionError('Failed to get contact information')
+        except Exception as e:
+            wsprint('Failed to get contact information')
+            raise e
 
     def login(self,args):
         '''Accepts args object and perform authentication relative to
@@ -1043,7 +1261,9 @@ class Session(requests.Session):
 
         if args.cookies:
 
-            return self.cookieAuth(args.cookies)
+            cookies = importCookies(args.cookies)
+
+            return self.cookieAuth(cookies)
 
         elif args.credentials:
 

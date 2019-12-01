@@ -42,9 +42,17 @@ credentials = Argument('-C','--credentials',
     use for authentication.
     ''')
 cookies = Argument('-c','--cookies',
-    help='''Cookies needed to access LinkedIn in context of the correct
-    user. During development, the following cookies were required: li_at
-    and JSESSIONID'
+    nargs='+',
+    help='''One or more JSON files containing cookies to support
+    authentication to LinkedIn. Each file should contain an array
+    of JSON objects with a name member containing the name of the
+    current cookie and a value member containing the value of the
+    current cookie, i.e.
+    [{"name":"cookie_name","value":"cookie_value"}]. I elected to
+    make this change from a string of cookies because there is a
+    chance that additional cookies may be introduced in the future
+    and this approach is more easily managed. Use a browser extension
+    like CookieBro to export these values from FireFox.
     ''')
 
 # ==============
@@ -75,11 +83,15 @@ proxies = Argument('-p','--proxies',
     required=False)
 user_agent = Argument('-ua','--user-agent',
     default='Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101' \
-        'Firefox/60.0',
+        ' Firefox/60.0',
     help='User agent string. Default: %(default)s')
 verify_ssl = Argument('-vs','--verify-ssl',
     action='store_true',
     help='Verify SSL certificate. Default: %(default)s')
+disable_logout = Argument('--disable-logout',
+    action='store_true',
+    help='''Preserve cookies for additional requests by disabling the
+    logout call after execution. Default: %(default)s''')
 
 # =============
 # OTHER OPTIONS
@@ -147,6 +159,7 @@ url.add(misc_group)
 proxies.add(misc_group)
 user_agent.add(misc_group)
 verify_ssl.add(misc_group)
+disable_logout.add(misc_group)
 
 
 # ======================
@@ -186,6 +199,7 @@ url.add(misc_group)
 proxies.add(misc_group)
 user_agent.add(misc_group)
 verify_ssl.add(misc_group)
+disable_logout.add(misc_group)
 
 # ===============
 # SPOOF SUBPARSER
@@ -220,4 +234,5 @@ url.add(misc_group)
 proxies.add(misc_group)
 user_agent.add(misc_group)
 verify_ssl.add(misc_group)
+disable_logout.add(misc_group)
 

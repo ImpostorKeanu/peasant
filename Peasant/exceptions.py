@@ -1,3 +1,4 @@
+from Peasant.suffix_printer import *
 
 class SessionException(Exception):
     pass
