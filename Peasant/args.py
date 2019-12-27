@@ -1,6 +1,7 @@
 import argparse
 from sys import stdout
 from Peasant.banner import banner
+from Peasant import constants
 
 class Argument:
 
@@ -43,7 +44,7 @@ credentials = Argument('-C','--credentials',
     ''')
 cookies = Argument('-c','--cookies',
     nargs='+',
-    help='''One or more JSON files containing cookies to support
+    help='''One or more JSON/SQLite files containing cookies to support
     authentication to LinkedIn. Each file should contain an array
     of JSON objects with a name member containing the name of the
     current cookie and a value member containing the value of the
@@ -82,8 +83,7 @@ proxies = Argument('-p','--proxies',
     be used to send requests.''',
     required=False)
 user_agent = Argument('-ua','--user-agent',
-    default='Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101' \
-        ' Firefox/60.0',
+    default=constants.USER_AGENT,
     help='User agent string. Default: %(default)s')
 verify_ssl = Argument('-vs','--verify-ssl',
     action='store_true',

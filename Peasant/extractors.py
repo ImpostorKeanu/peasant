@@ -1,6 +1,7 @@
 from Peasant.profile import Profile
 from Peasant.picture import Picture
 from Peasant.exceptions import SessionException
+from Peasant.suffix_printer import *
 from Peasant.image import Image
 from Peasant.constants import *
 from re import sub

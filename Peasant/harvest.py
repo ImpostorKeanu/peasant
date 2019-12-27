@@ -58,7 +58,6 @@ def harvest_contacts(args,session,main_profiles=[]):
                 main_profiles.append(profile)
     
     esprint(f'Done! Total known profiles: {main_profiles.__len__()}')
-    esprint(f'Logging out of LinkedIn')
     
     # ============
     # ADD CONTACTS

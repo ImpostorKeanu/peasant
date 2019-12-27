@@ -7,6 +7,7 @@ from getpass import getpass
 import json
 import csv
 from pathlib import Path
+import sqlite3
 import pdb
 
 def importCookies(filenames):
@@ -14,20 +15,44 @@ def importCookies(filenames):
     cookies = {}
     for filename in filenames:
 
-        with open(filename) as infile:
+        pth = Path(filename)
+        if not pth.exists():
+            raise f'File not found: {filename}'
 
-            for jcookie in json.load(infile):
+        try:
 
-                assert 'name' in jcookie,(
-                    'Cookie must have a "name" member'
-                )
+            with open(filename) as infile:
+    
+                for jcookie in json.load(infile):
+    
+                    assert 'name' in jcookie,(
+                        'Cookie must have a "name" member'
+                    )
+    
+                    assert 'value' in jcookie,(
+                        'Cookie must have a "value" member'
+                    )
+    
+                    cookies[jcookie['name']] = jcookie['value']
 
-                assert 'value' in jcookie,(
-                    'Cookie must have a "value" member'
-                )
+        except Exception as e:
 
-                cookies[jcookie['name']] = jcookie['value']
+            esprint('Failed to parse JSON file for cookies. Attempting ' \
+                    'SQLite3 File')
 
+            with open(filename,'rb') as infile:
+                with open('cookies.sqlite','wb') as outfile:
+                    outfile.write(infile.read())
+
+            conn = sqlite3.connect('cookies.sqlite')
+            cur = conn.cursor()
+            for row in cur.execute(
+                    f"select * from moz_cookies where "\
+                    "baseDomain like '%linkedin%';"
+                    ):
+                k,v = row[3],row[4]
+                cookies[k] = v
+                
     return cookies
 
 def checkEntityUrn(inc,start):

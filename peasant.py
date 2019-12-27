@@ -116,7 +116,7 @@ try:
 
 finally:
 
-    if not args.disable_logout:
+    if not args.cookies and not args.disable_logout:
 
         esprint('Logging out')
         session.getLogout()
