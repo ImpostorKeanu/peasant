@@ -8,7 +8,7 @@ import json
 import csv
 from pathlib import Path
 import sqlite3
-import pdb
+from sys import exit
 
 def importCookies(filenames):
             
@@ -37,22 +37,30 @@ def importCookies(filenames):
 
         except Exception as e:
 
-            esprint('Failed to parse JSON file for cookies. Attempting ' \
-                    'SQLite3 File')
+            esprint('Failed to import cookies as JSON file. '\
+                    'Attempting to parse as SQLite3 file.')
 
-            with open(filename,'rb') as infile:
-                with open('cookies.sqlite','wb') as outfile:
-                    outfile.write(infile.read())
+            try:
 
-            conn = sqlite3.connect('cookies.sqlite')
-            cur = conn.cursor()
-            for row in cur.execute(
-                    f"select * from moz_cookies where "\
-                    "baseDomain like '%linkedin%';"
-                    ):
-                k,v = row[3],row[4]
-                cookies[k] = v
-                
+                with open(filename,'rb') as infile:
+                    with open('cookies.sqlite','wb') as outfile:
+                        outfile.write(infile.read())
+    
+                conn = sqlite3.connect('cookies.sqlite')
+                cur = conn.cursor()
+                for row in cur.execute(
+                        f"select * from moz_cookies where "\
+                        "baseDomain like '%linkedin%';"
+                        ):
+                    k,v = row[3],row[4]
+                    cookies[k] = v
+
+            except Exception as e:
+
+                esprint('Failed to import cookies!\n\n')
+                print(e)
+                exit()
+
     return cookies
 
 def checkEntityUrn(inc,start):
