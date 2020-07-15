@@ -1,5 +1,6 @@
 from http.cookies import SimpleCookie
 import re
+import pdb
 
 def parseUrn(s):
     '''Parse the URN value from a string.
@@ -25,7 +26,7 @@ def parseCompanyId(text_body):
         return s
 
 def parseJSESSIONID(value):
-
+    assert value,'A str value must be provided to parseJSESSIONID'
     value = re.search('ajax:([0-9]+)',value) \
             .groups()[0]
     return f'ajax:{value}'
