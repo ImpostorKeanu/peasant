@@ -55,7 +55,7 @@ records to dundermifflin.csv:
 
 _WARNING_: Use of the `-ac` flag will result in a connection request
 being sent to each accessible profile. If you wish to filter for
-particlar profiles, use the `-of` flag to dump the results to disk
+particular profiles, use the `-of` flag to dump the results to disk
 and select specific records via grep and use the `add_contacts`
 subcommand to create connection requests.
 
@@ -102,7 +102,7 @@ company. This appears to facilitate access to more contacts initially.
 
 Use the `add_contacts` subcommand to generate connection requests for
 target profiles. This command takes the name of a CSV file generated
-by the `harvest` subommand and will indiscriminately send a connection
+by the `harvest` subcommand and will indiscriminately send a connection
 request for each record.
 
 ### Example
@@ -113,7 +113,7 @@ the `My Network` tab of your LinkedIn profile to observe the connection
 requests.
 
 _Bonus_: Use the `-m` flag of this subcommand to send a custom message
-to the receipients, just be aware that this is still being tested.
+to the recipients, just be aware that this is still being tested.
 
 ```
 archangel@deskjet:peasant~> ./peasant.py add_contacts -if dundermifflin.csv -C "$creds"                                                                                                                                                                                                                                                                                                                 
