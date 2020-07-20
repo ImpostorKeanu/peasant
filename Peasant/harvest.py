@@ -5,18 +5,20 @@ from Peasant.generic import *
 
 class Company:
 
-    def __init__(self,company_name,step_size=10):
+    def __init__(self,session,company_name,step_size=10):
+
+        self.harvested=False
 
         # track the company_name
         self.company_name=company_name
-        self.cn=self.company_name
 
         # maintain step size for each profile request
         self.step_size=step_size
-        self.ss=self.step_size
 
         # maintain previous offset call for next call
-        self.last_offset=0
+        self.last_offset=-1
+        self.offset=0
+        self.next_offset=step_size
 
         # keep track of profiles for each company name
         self.profiles=[]
@@ -29,10 +31,10 @@ class Company:
         # ========================================
 
         try:
-            cid = company_id = session.getCompanyId(company_name)
+            self.company_id = session.getCompanyId(self.company_name)
             esprint(f'Company Identifier for {company_name}: {cid}')
         except SessionException:
-            esprint(f'Failed to get company identifier for {company_name} ' \
+            esprint(f'Failed to get company identifier for {self.company_name} ' \
                     'Continuing to next company')
 
         # ========================
@@ -40,16 +42,42 @@ class Company:
         # ========================
 
         esprint('Getting initial profiles')
-        resp = session.getContactSearchResults(cid,0,10)
-        count, profiles = extractInfo(resp.json(),company_name,cid)
+
+        # Get profiles
+        resp = session.getContactSearchResults(self.company_id,0,self.step_size)
+
+        # Extract info from the profiles
+        self.profile_count, profiles = extractInfo(resp.json(),company_name,cid)
+        self.profiles += profiles
+
         esprint(f'Available profiles: {count}')
+        self.step()
 
     def step(self):
 
-        ceiling=self.last_offset+self.step_size
-        out=(self.last_offset,ceiling,)
-        self.last_offset=ceiling
-        return out
+        self.last_offset=self.offset
+        self.offset=self.next_offset
+        self.next_offset+=self.step_size
+
+        if self.next_offset > self.profile_count:
+            self.next_offset=self.profile_count
+        elif self.next_offset >= 1000:
+            self.next_offset = 999
+
+        return self.offset
+
+    def is_finished(self):
+
+        if self.harvested:
+            return True
+
+        elif [n for n in [self.offset,self.last_offset] if n >= 999] or \
+                self.profiles.__len__() >= self.profile_count:
+            self.harvested=True
+            return True
+
+        else:
+            return False
 
 def harvest_contacts(args,session,main_profiles=[]):
 
@@ -106,6 +134,51 @@ def harvest_contacts(args,session,main_profiles=[]):
         # =========================
     
         for profile in profiles:
+            if profile not in main_profiles:
+                main_profiles.append(profile)
+    
+    esprint(f'Done! Total known profiles: {main_profiles.__len__()}')
+    
+    # ============
+    # ADD CONTACTS
+    # ============
+    
+    if args.add_contacts:
+    
+        esprint(f'Sending connection requests...')
+
+        # Must track profiles here since addContacts will
+        # update the connection_sent attribute to True
+        main_profiles = addContacts(session,main_profiles)
+    
+    # ===========
+    # DUMP OUTPUT
+    # ===========
+    
+    esprint(f'Writing output to {args.output_file}')
+    writeProfiles(args.output_file,main_profiles)
+    esprint('Done!')
+
+def fuzzy_harvest_contacts(args,session,main_profiles=[]):
+
+    # ============================
+    # BEGIN EXTRACTING INFORMATION
+    # ============================
+  
+    companies = []
+    for company_name in args.company_names:
+
+        companies.append(Company(session,company_name))
+
+    fuzzyExtractProfiles(session,companies,max_jitter='10s')
+
+    for company in companies:
+    
+        # =========================
+        # CAPTURE ONLY NEW PROFILES
+        # =========================
+    
+        for profile in company.profiles:
             if profile not in main_profiles:
                 main_profiles.append(profile)
     

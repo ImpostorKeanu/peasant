@@ -5,6 +5,9 @@ from Peasant.suffix_printer import *
 from Peasant.image import Image
 from Peasant.constants import *
 from re import sub
+from random import randint
+from Peasant.harvest import Company
+from Peasant.jitterize import Jitter
 
 def extractImages(root_url,artifacts,session):
     '''Extract picture linke from a JSON object.
@@ -161,7 +164,7 @@ def extractProfiles(session,company_name,company_id,offset=10,
 
             esprint('Failed to extract search results',suf='[!]')
             print('Exception Message:',e)
-            raise profiles
+            return profiles
 
         # =====================================
         # INCREMENT COUNTERS FOR NEXT ITERATION
@@ -173,3 +176,104 @@ def extractProfiles(session,company_name,company_id,offset=10,
         if offset >= 1000: offset = 999
 
     return profiles
+
+def fuzzyExtractProfiles(session,
+        companies,
+        max_facet_values=10,
+        min_jitter='2s',
+        max_jitter='5s'):
+
+    # ==========================
+    # INITIALIZE A JITTER OBJECT
+    # ==========================
+
+    try:
+        jitter = Jitter(min_jitter, max_jitter)
+    except Exception as e:
+        esprint('Failed to initialize Jitter for fuzzy extraction')
+        raise e
+
+    # Assert that companies is not an empty list and that all items
+    # are Company objects
+
+    assert companies.__class__ == list and companies.__len__() > 0 and \
+            (
+                    [
+                        c for c in companies if
+                        c.__class__ == Company
+                    ].__len__() == companies.__len__()
+            ),('companies argument must be a list of Company objects')
+
+    # ===============
+    # EXTRACTION LOOP
+    # ===============
+
+    # Once all profiles for a company have been extracted, delete it
+    # from the companies list, which'll cause the while loop to break
+    while companies:
+
+        # =====================
+        # SELECT RANDOM COMPANY
+        # =====================
+
+        company = companies[randint(companies.__len__()-1)]
+
+        # =========================================
+        # MAKE SEARCH REQUEST AND HANDLE EXCEPTIONS
+        # =========================================
+
+        try:
+
+            resp = session.getContactSearchResults(
+                    company_id=company.company_id,
+                    start=company.step(),
+                    max_facet_values=company.step_size
+            )
+
+            if resp.status_code != 200 or 'Content-Type' not in \
+                    resp.headers or resp.headers['Content-Type'] != \
+                    CONTENT_TYPE_APPLICATION_JSON:
+                raise SessionException('Invalid API response received')
+
+        except Exception as e:
+
+            esprint('Failed to get search results',suf='[!]')
+            print('Exception Message:',e)
+            return False
+
+        # ================================================
+        # EXTRACT SEARCH INFORMATION AND HANDLE EXCEPTIONS
+        # ================================================
+
+        try:
+
+            icount, iprofiles = extractInfo(
+                    resp.json(),
+                    company.company_name,
+                    company.company_id
+            )
+
+            company.profiles += iprofiles
+
+        except Exception as e:
+
+            esprint('Failed to extract search results',suf='[!]')
+            print('Exception Message:',e)
+            return False
+
+        # Remove a finished company from the companies list
+        company.is_finished()
+
+        if company.offset >= icount:
+            company.harvested = True
+
+        if company.harvested:
+            del(companies[companies.index(company)])
+
+        # ======
+        # JITTER
+        # ======
+
+        if companies: jitter.sleep()
+
+    return True
